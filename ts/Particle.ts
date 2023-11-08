@@ -1,6 +1,11 @@
 const particles = [] as Particle[],
       PARTICLE_WIDTH = 10,
-      INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH;
+      INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH,
+      X_REGIONS = [] as { [x_region_id:number]: [particle_id:number] },
+      Y_REGIONS = [] as { [y_region_id:number]: [particle_id:number] };
+
+let physicsCaulculationsFromOrigin = (2 * screen.width) ** 2,
+    snapToGrid = true;
 
     /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
 let bounds_min_x = 0,
@@ -53,9 +58,9 @@ function set_offset_y(value:number) {
 
 /** Converts the event.y to the actual world position. */
 function DOM_to_world(clientX:number, clientY:number): [x:number, y:number] {
-    const rect = _canvas.getBoundingClientRect(),
-    scaleX = _canvas.width / rect.width,
-    scaleY = _canvas.height / rect.height;
+    const rect = canvas.getBoundingClientRect(),
+    scaleX = canvas.width / rect.width,
+    scaleY = canvas.height / rect.height;
 
   return [
     (clientX - rect.left) * scaleX,
@@ -79,6 +84,20 @@ function world_to_screen(x:number, y:number): [x:number, y:number] {
     ]
 }
 
+function world_to_cell(x:number, y:number): [x:number, y:number] {
+    return [
+        ~~((x - offset_x) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH,
+        ~~((y - offset_y) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH
+    ]
+}
+
+function world_to_region(x:number, y:number): [x_region:number, y_region:number] {
+    return [
+        ~~(this.x * INV_PARTICLE_REGION_SIZE),
+        ~~(this.y * INV_PARTICLE_REGION_SIZE)
+    ]
+}
+
 class Particle {
 
     /** Particles x position. */
@@ -97,7 +116,9 @@ class Particle {
     material:Material;
     collides_with:Particle[] = [];
     is_grounded = false;
-    snap_to_grid = false;
+
+    // @ts-expect-error
+    region_bounds: [number,number,number,number]
 
     constructor(material_type:number, x:number, y:number, vx=0, vy=0, ax=0, ay=0) {
         this.material = new Material(material_type);
@@ -107,39 +128,36 @@ class Particle {
         this.vy = vy;
         this.ax = ax;
         this.ay = ay;
+
+        // @ts-expect-error TODO: assign regions manually
+    }
+
+    /** Should the particle keep updating its physics values? */
+    should_be_updated() {
+        return (this.x - offset_x)**2 + (this.y - offset_y)**2 <= physicsCaulculationsFromOrigin
     }
 
     /** Called during the fixedUpdate, this calculates the new speed and position of the particle. */
     step() {
+        if (this.should_be_updated() === false) return;
+
         this.vx += this.ax * fixedDeltaTime;
         this.vy += this.ay * fixedDeltaTime;
         this.x += this.vx * fixedDeltaTime;
         this.y += this.vy * fixedDeltaTime;
+
+        // @ts-expect-error TODO: assign regions with function
+        // this means that whenever i assign a new region i have to remove this particle from the previous one
+        // add it to the new region and sort from smallest to highest ID
     }
 
-    region(): [x_region:number, y_region:number] {
-        return [
-            ~~(this.x * INV_PARTICLE_REGION_SIZE),
-            ~~(this.y * INV_PARTICLE_REGION_SIZE)
-        ]
-    }
-
-
+    /** Should the particle be rendered? */
     is_visible() {
         return this.x > bounds_min_x && this.x < bounds_max_x && this.y > bounds_min_y && this.y < bounds_max_y
     }
 
     screen_position(): [x:number, y:number] {
-        const screen_pos_x = this.x - offset_x,
-              screen_pos_y = this.y - offset_y;
-
-        return this.snap_to_grid === true ? [
-            ~~(screen_pos_x * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH,
-            ~~(screen_pos_y * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH
-        ] : [
-            screen_pos_x,
-            screen_pos_y
-        ]
+        return snapToGrid === true ? world_to_cell(this.x, this.y) : world_to_screen(this.x, this.y)
     }
 
     stop_horizontal_movement() {
@@ -153,5 +171,21 @@ class Particle {
     }
 }
 
-const PARTICLE_REGION_SIZE = PARTICLE_WIDTH * 5,
+function intersect_xy_regions(x_reg:number[], y_reg:number[]) {
+    
+}
+
+function find_particle(x:number, y:number): null|Particle {
+    let reg = world_to_region(x,y);
+    
+    let x_reg = X_REGIONS[reg[0]];
+    if (x_reg === undefined) return null;
+
+    let y_reg = Y_REGIONS[reg[1]];
+    if (y_reg === undefined) return null;
+
+    return null;
+}
+
+const PARTICLE_REGION_SIZE = PARTICLE_WIDTH * 3,
       INV_PARTICLE_REGION_SIZE = 1 / PARTICLE_REGION_SIZE;

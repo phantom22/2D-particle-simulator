@@ -10,7 +10,7 @@ let width = 0,
     offset_x = 0,
     /** Canvas offset y. How far away is the y component from 0. */
     offset_y = 0,
-    _canvas: HTMLCanvasElement,
+    canvas: HTMLCanvasElement,
     ctx:CanvasRenderingContext2D,
     /** If true the canvas will keep updating (image and physics calculations). */
     unpaused = true,
@@ -19,16 +19,15 @@ let width = 0,
     min_zoom = 0.1,
     max_zoom = 5,
     /** This flag is set to true whenever the window is resized. On the next render frames the canvas width and height will be updated. */
-    _updateCanvasSize = false,
+    Display_updateCanvasSize = false,
     /** Time between two physics frames. Measured in milliseconds. Read-only. */
     fixedDeltaTime:number,
     /** Time took to render current frame. Measured in milliseconds. Read-only. */
     deltaTime:number,
+    /** Increments by one each rendered frame. */
+    frameCount:number,
     physicsIntervalId:number,
-    renderIntervalId:number,
-    /** -1 = none, 0 = drawing, 1 = moving, 2 = removing/inspecting */
-    _drag_type = -1 as -1|0|1|2,
-    _drag_before_pos = null as [x:number, y:number];
+    renderIntervalId:number;
 
 function draw_particle(p:Particle) {
     if (p === undefined || p.is_visible() === false) return;
@@ -56,15 +55,13 @@ class Display {
     readonly fps:number;
     /** Max physics frames per second. Read-only.*/
     readonly fixedFps:number;
-    /** Increments by one each rendered frame. */
-    readonly frame = 0 as number;
 
     constructor(query:string, settings:CanvasSettings = {}) {
         const c = document.querySelector(query);
         if (c instanceof HTMLCanvasElement) {
             c.width = width;
             c.height
-            _canvas = c;
+            canvas = c;
             ctx = c.getContext("2d");
             this.#applySettings(settings);
             this.#init().then(fps => this.start(fps, settings.fixedFps));
@@ -73,84 +70,6 @@ class Display {
     }
     #applySettings({}:CanvasSettings={}) {
 
-    }
-    #applyEvents() {
-        const zoomDelta = 1 / this.fps;
-        _canvas.addEventListener("wheel", e => {
-            zoom = Math.min(min_zoom, Math.max(zoom - Math.sign(e.deltaY) * zoomDelta, max_zoom));
-        });
-
-        _canvas.addEventListener("mousedown", e => {
-            e.preventDefault();
-            switch (e.button) {
-                // Left button
-                case 0:
-                    _drag_type = 0;
-                    break;
-                // Wheel/Middle button
-                case 1:
-                    _drag_type = 1;
-                    break;
-                // Right button
-                case 2:
-                    _drag_type = 2;
-                    break;
-                // Any other auxiliary button
-                default:
-                    break;
-            }
-            _drag_before_pos = [e.clientX, e.clientY];
-        });
-
-        _canvas.addEventListener("mousemove", e => {
-
-            if (_drag_type === -1) return;
-
-            const currentPos = [e.clientX, e.clientY] as [x:number, y:number];
-            
-            switch (_drag_type) {
-                // Left button
-                case 0:
-                    break;
-                // Wheel/Middle button
-                case 1:
-                    set_offset(offset_x + _drag_before_pos[0] - currentPos[0], offset_y + _drag_before_pos[1] - currentPos[1]);
-                    break;
-                // Right button
-                case 2:
-                    break;
-                // Any other auxiliary button
-                default:
-                    _drag_type = -1;
-                    return;
-            }
-
-            _drag_before_pos = currentPos;
-
-        });
-
-        _canvas.addEventListener("mouseup", e => {
-            e.preventDefault();
-            switch (e.button) {
-                // Left button
-                case 0:
-                    break;
-                // Wheel/Middle button
-                case 1:
-                    break;
-                // Right button
-                case 2:
-                    break;
-                // Any other auxiliary button
-                default:
-                    break;
-            }
-            _drag_type = -1;
-        });
-
-        _canvas.addEventListener("mouseleave", _ => {
-            _drag_type = -1;
-        });
     }
     /** Method used to detect screen refresh rate. If refresh rate was already calculated => resolve with that value */
     #init(): Promise<number> {
@@ -202,16 +121,14 @@ class Display {
     }
     start(fps:number, fixedFps:number) {
         Object.defineProperty(this,"fps",{value:fps,writable:false});
-        let _fixedFps = fixedFps|fps;
-        Object.defineProperty(this,"fixedFps",{value:_fixedFps,writable:false});
-
-        fixedDeltaTime = 1000 / _fixedFps;
+        fixedFps = fixedFps || fps;
+        Object.defineProperty(this,"fixedFps",{value:fixedFps,writable:false});
+        fixedDeltaTime = 1000 / fixedFps;
+        applyEventListeners(fps);
 
         unpaused = true;
-
-        this.#applyEvents();
-
-        _updateCanvasSize = true;
+        frameCount = 0;
+        Display_updateCanvasSize = true;
 
         physicsIntervalId = setInterval(this.fixedPhysicsStep.bind(this), fixedDeltaTime);
         renderIntervalId = requestAnimationFrame(this.renderFrame.bind(this,0,0))
@@ -223,12 +140,12 @@ class Display {
         }
     }
     adaptResolution() {
-        if (_updateCanvasSize) {
+        if (Display_updateCanvasSize) {
             width = window.innerWidth;
             height = window.innerHeight;
-            _canvas.width = width;
-            _canvas.height = height;
-            _updateCanvasSize = false;
+            canvas.width = width;
+            canvas.height = height;
+            Display_updateCanvasSize = false;
             update_bounds();
         }
     }
@@ -251,9 +168,11 @@ class Display {
             draw_particle(particles[i+9]);
         }
 
+        frameCount++;
+
         renderIntervalId = requestAnimationFrame(nextFrame => this.renderFrame.call(this,nextFrame,currFrame));
     }
 }
 Object.defineProperty(Display,"IS_RUN_ON_PHONE",{writable:false});
 
-window.addEventListener("resize", _ => _updateCanvasSize = true);
+window.addEventListener("resize", _ => Display_updateCanvasSize = true);

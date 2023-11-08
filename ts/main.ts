@@ -1,1 +1,1 @@
-const display = new Display("#display");
+const display = new Display("#display", { fixedFps: 60 });

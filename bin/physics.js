@@ -1,3 +1,79 @@
+function _propagate(node, value) {
+    const oldValue = node.value;
+    node.value = value;
+}
+class NODE {
+    value;
+    left = null;
+    right = null;
+    constructor(value) {
+        this.value = value;
+    }
+    insert(k) {
+        const _l = this.left === null, _r = this.right === null, v = this.value;
+        if (_l && _r) {
+            if (k < v) {
+                this.left = new NODE(k);
+            }
+            else {
+                this.right = new NODE(k);
+            }
+        }
+        else if (!_l && _r) {
+            let l = this.left.value;
+            if (v < k) {
+                this.right = new NODE(k);
+            }
+            else if (l < k && k < v) {
+                this.value = k;
+                this.right = new NODE(v);
+            }
+            else {
+                //this.left.value = k;
+                //this.value = l;
+                //this.right = new NODE(v);
+                this.left.insert(k);
+            }
+        }
+        else if (_l && !_r) {
+            let r = this.right.value;
+            if (k < v) {
+                this.left = new NODE(k);
+            }
+            else if (v < k && k < r) {
+                this.left = new NODE(v);
+                this.value = k;
+            }
+            else {
+                //this.left = new NODE(v);
+                //this.value = r;
+                //this.right.value = k;
+                this.right.insert(k);
+            }
+        }
+        else {
+            if (k > v) {
+                this.right.insert(k);
+            }
+            else {
+                this.left.insert(k);
+            }
+        }
+    }
+}
+class BST {
+    root;
+    constructor(node = null) {
+        this.root = node;
+    }
+    insert(value) {
+        if (this.root === null) {
+            this.root = new NODE(value);
+            return;
+        }
+        this.root.insert(value);
+    }
+}
 /** Canvas width. Set to window.innerWidth. */
 let width = 0, 
 /** Canvas height. Set to window.innerHeight. */
@@ -5,19 +81,19 @@ height = 0,
 /** Canvas offset x. How far away is the x component from 0. */
 offset_x = 0, 
 /** Canvas offset y. How far away is the y component from 0. */
-offset_y = 0, _canvas, ctx, 
+offset_y = 0, canvas, ctx, 
 /** If true the canvas will keep updating (image and physics calculations). */
 unpaused = true, 
 /** Current canvas zoom. 1 is the default value. */
 zoom = 1, min_zoom = 0.1, max_zoom = 5, 
 /** This flag is set to true whenever the window is resized. On the next render frames the canvas width and height will be updated. */
-_updateCanvasSize = false, 
+Display_updateCanvasSize = false, 
 /** Time between two physics frames. Measured in milliseconds. Read-only. */
 fixedDeltaTime, 
 /** Time took to render current frame. Measured in milliseconds. Read-only. */
-deltaTime, physicsIntervalId, renderIntervalId, 
-/** -1 = none, 0 = drawing, 1 = moving, 2 = removing/inspecting */
-_drag_type = -1, _drag_before_pos = null;
+deltaTime, 
+/** Increments by one each rendered frame. */
+frameCount, physicsIntervalId, renderIntervalId;
 function draw_particle(p) {
     if (p === undefined || p.is_visible() === false)
         return;
@@ -46,7 +122,7 @@ class Display {
         if (c instanceof HTMLCanvasElement) {
             c.width = width;
             c.height;
-            _canvas = c;
+            canvas = c;
             ctx = c.getContext("2d");
             this.#applySettings(settings);
             this.#init().then(fps => this.start(fps, settings.fixedFps));
@@ -55,76 +131,6 @@ class Display {
             throw `Couldn't find canvas with query '${query}'`;
     }
     #applySettings({} = {}) {
-    }
-    #applyEvents() {
-        const zoomDelta = 1 / this.fps;
-        _canvas.addEventListener("wheel", e => {
-            zoom = Math.min(min_zoom, Math.max(zoom - Math.sign(e.deltaY) * zoomDelta, max_zoom));
-        });
-        _canvas.addEventListener("mousedown", e => {
-            e.preventDefault();
-            switch (e.button) {
-                // Left button
-                case 0:
-                    _drag_type = 0;
-                    break;
-                // Wheel/Middle button
-                case 1:
-                    _drag_type = 1;
-                    break;
-                // Right button
-                case 2:
-                    _drag_type = 2;
-                    break;
-                // Any other auxiliary button
-                default:
-                    break;
-            }
-            _drag_before_pos = [e.clientX, e.clientY];
-        });
-        _canvas.addEventListener("mousemove", e => {
-            if (_drag_type === -1)
-                return;
-            const currentPos = [e.clientX, e.clientY];
-            switch (_drag_type) {
-                // Left button
-                case 0:
-                    break;
-                // Wheel/Middle button
-                case 1:
-                    set_offset(offset_x + _drag_before_pos[0] - currentPos[0], offset_y + _drag_before_pos[1] - currentPos[1]);
-                    break;
-                // Right button
-                case 2:
-                    break;
-                // Any other auxiliary button
-                default:
-                    _drag_type = -1;
-                    return;
-            }
-            _drag_before_pos = currentPos;
-        });
-        _canvas.addEventListener("mouseup", e => {
-            e.preventDefault();
-            switch (e.button) {
-                // Left button
-                case 0:
-                    break;
-                // Wheel/Middle button
-                case 1:
-                    break;
-                // Right button
-                case 2:
-                    break;
-                // Any other auxiliary button
-                default:
-                    break;
-            }
-            _drag_type = -1;
-        });
-        _canvas.addEventListener("mouseleave", _ => {
-            _drag_type = -1;
-        });
     }
     /** Method used to detect screen refresh rate. If refresh rate was already calculated => resolve with that value */
     #init() {
@@ -183,12 +189,13 @@ class Display {
     }
     start(fps, fixedFps) {
         Object.defineProperty(this, "fps", { value: fps, writable: false });
-        let _fixedFps = fixedFps | fps;
-        Object.defineProperty(this, "fixedFps", { value: _fixedFps, writable: false });
-        fixedDeltaTime = 1000 / _fixedFps;
+        fixedFps = fixedFps || fps;
+        Object.defineProperty(this, "fixedFps", { value: fixedFps, writable: false });
+        fixedDeltaTime = 1000 / fixedFps;
+        applyEventListeners(fps);
         unpaused = true;
-        this.#applyEvents();
-        _updateCanvasSize = true;
+        frameCount = 0;
+        Display_updateCanvasSize = true;
         physicsIntervalId = setInterval(this.fixedPhysicsStep.bind(this), fixedDeltaTime);
         renderIntervalId = requestAnimationFrame(this.renderFrame.bind(this, 0, 0));
     }
@@ -199,12 +206,12 @@ class Display {
         }
     }
     adaptResolution() {
-        if (_updateCanvasSize) {
+        if (Display_updateCanvasSize) {
             width = window.innerWidth;
             height = window.innerHeight;
-            _canvas.width = width;
-            _canvas.height = height;
-            _updateCanvasSize = false;
+            canvas.width = width;
+            canvas.height = height;
+            Display_updateCanvasSize = false;
             update_bounds();
         }
     }
@@ -224,12 +231,108 @@ class Display {
             draw_particle(particles[i + 8]);
             draw_particle(particles[i + 9]);
         }
+        frameCount++;
         renderIntervalId = requestAnimationFrame(nextFrame => this.renderFrame.call(this, nextFrame, currFrame));
     }
 }
 Object.defineProperty(Display, "IS_RUN_ON_PHONE", { writable: false });
-window.addEventListener("resize", _ => _updateCanvasSize = true);
+window.addEventListener("resize", _ => Display_updateCanvasSize = true);
+/** context: mouseEvents. -1 = none, 0 = drawing, 1 = moving, 2 = removing/inspecting */
+let _drag_type, 
+/** context: mouseEvents. Needed for mouse drag functionality. */
+_previousMousePosition, 
+/** context: mouseEvents. Needed to reduce lag from the mouse Move event. Indicates last frame in which the event was registered. */
+_lastSampleFrame, 
+/** Current canvas scale. 1 is the default value. */
+scale = 1, 
+/** context: mouseEvents. How much can the scale change in a second. */
+scaleDelta;
+/** context: mouseEvents. Minimun scale value. */
+const _minScale = 0.1, 
+/** context: mouseEvents. Maximum scale value. */
+_maxScale = 5;
+function applyEventListeners(fps) {
+    _drag_type = -1;
+    _previousMousePosition = null;
+    scaleDelta = 1 / fps;
+    _lastSampleFrame = -1;
+    canvas.addEventListener("wheel", mousewheel);
+    canvas.addEventListener("mousedown", mousedown);
+    canvas.addEventListener("mousemove", mousemove);
+    canvas.addEventListener("mouseup", mouseup);
+    canvas.addEventListener("mouseleave", mouseleave);
+}
+function mousewheel(e) {
+    scale = Math.min(_minScale, Math.max(scale - Math.sign(e.deltaY) * scaleDelta, _maxScale));
+}
+function mousedown(e) {
+    e.preventDefault();
+    switch (e.button) {
+        // Left button
+        case 0:
+            _drag_type = 0;
+            break;
+        // Wheel/Middle button
+        case 1:
+            _drag_type = 1;
+            break;
+        // Right button
+        case 2:
+            _drag_type = 2;
+            break;
+        // Any other auxiliary button
+        default:
+            _drag_type = -1;
+            break;
+    }
+    _previousMousePosition = [e.clientX, e.clientY];
+}
+function mousemove(e) {
+    if (_drag_type === -1 || frameCount === _lastSampleFrame)
+        return;
+    const currentPos = [e.clientX, e.clientY];
+    switch (_drag_type) {
+        // Left button
+        case 0:
+            break;
+        // Wheel/Middle button
+        case 1:
+            set_offset(offset_x + _previousMousePosition[0] - currentPos[0], offset_y + _previousMousePosition[1] - currentPos[1]);
+            break;
+        // Right button
+        case 2:
+            break;
+        // Any other auxiliary button
+        default:
+            _drag_type = -1;
+            return;
+    }
+    _previousMousePosition = currentPos;
+    _lastSampleFrame = frameCount;
+}
+function mouseup(e) {
+    e.preventDefault();
+    switch (e.button) {
+        // Left button
+        case 0:
+            break;
+        // Wheel/Middle button
+        case 1:
+            break;
+        // Right button
+        case 2:
+            break;
+        // Any other auxiliary button
+        default:
+            break;
+    }
+    _drag_type = -1;
+}
+function mouseleave(e) {
+    _drag_type = -1;
+}
 const particles = [], PARTICLE_WIDTH = 10, INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH;
+let physicsCaulculationsFromOrigin = (screen.width * 3) ** 2, snapToGrid = true;
 /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
 let bounds_min_x = 0, 
 /** Visibility bounds - any particle with a y value higher than this can be visible vertically. */
@@ -274,7 +377,7 @@ function set_offset_y(value) {
 }
 /** Converts the event.y to the actual world position. */
 function DOM_to_world(clientX, clientY) {
-    const rect = _canvas.getBoundingClientRect(), scaleX = _canvas.width / rect.width, scaleY = _canvas.height / rect.height;
+    const rect = canvas.getBoundingClientRect(), scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
     return [
         (clientX - rect.left) * scaleX,
         (clientY - rect.top) * scaleY
@@ -294,6 +397,18 @@ function world_to_screen(x, y) {
         y - offset_y
     ];
 }
+function world_to_cell(x, y) {
+    return [
+        ~~((x - offset_x) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH,
+        ~~((y - offset_y) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH
+    ];
+}
+function world_to_region(x, y) {
+    return [
+        ~~(this.x * INV_PARTICLE_REGION_SIZE),
+        ~~(this.y * INV_PARTICLE_REGION_SIZE)
+    ];
+}
 class Particle {
     /** Particles x position. */
     x;
@@ -311,7 +426,6 @@ class Particle {
     material;
     collides_with = [];
     is_grounded = false;
-    snap_to_grid = false;
     constructor(material_type, x, y, vx = 0, vy = 0, ax = 0, ay = 0) {
         this.material = new Material(material_type);
         this.x = x;
@@ -321,31 +435,25 @@ class Particle {
         this.ax = ax;
         this.ay = ay;
     }
+    /** Should the particle keep updating its physics values? */
+    should_be_updated() {
+        return (this.x - offset_x) ** 2 + (this.y - offset_y) ** 2 <= physicsCaulculationsFromOrigin;
+    }
     /** Called during the fixedUpdate, this calculates the new speed and position of the particle. */
     step() {
+        if (this.should_be_updated() === false)
+            return;
         this.vx += this.ax * fixedDeltaTime;
         this.vy += this.ay * fixedDeltaTime;
         this.x += this.vx * fixedDeltaTime;
         this.y += this.vy * fixedDeltaTime;
     }
-    region() {
-        return [
-            ~~(this.x * INV_PARTICLE_REGION_SIZE),
-            ~~(this.y * INV_PARTICLE_REGION_SIZE)
-        ];
-    }
+    /** Should the particle be rendered? */
     is_visible() {
         return this.x > bounds_min_x && this.x < bounds_max_x && this.y > bounds_min_y && this.y < bounds_max_y;
     }
     screen_position() {
-        const screen_pos_x = this.x - offset_x, screen_pos_y = this.y - offset_y;
-        return this.snap_to_grid === true ? [
-            ~~(screen_pos_x * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH,
-            ~~(screen_pos_y * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH
-        ] : [
-            screen_pos_x,
-            screen_pos_y
-        ];
+        return snapToGrid === true ? world_to_cell(this.x, this.y) : world_to_screen(this.x, this.y);
     }
     stop_horizontal_movement() {
         this.ax = 0;
@@ -400,4 +508,4 @@ function DEBUG_read_particle(id) {
 function DEBUG_get_bounds() {
     return { bounds_min_x, bounds_max_x, bounds_min_y, bounds_max_y };
 }
-const display = new Display("#display");
+const display = new Display("#display", { fixedFps: 60 });

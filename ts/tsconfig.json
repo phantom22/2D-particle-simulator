@@ -4,7 +4,9 @@
         "outFile": "../bin/physics.js"
     },
     "files": [
+        "bst.ts",
         "Display.ts",
+        "mouseEvents.ts",
         "Particle.ts",
         "Material.ts",
         "DEBUG.ts",
