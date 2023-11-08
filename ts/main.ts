@@ -1,1 +1,1 @@
-const display = new Display();
+const display = new Display("#display");

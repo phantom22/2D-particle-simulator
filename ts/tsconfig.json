@@ -2,5 +2,12 @@
     "compilerOptions": {
         "target": "ESNext",
         "outFile": "../bin/physics.js"
-    }
+    },
+    "files": [
+        "Display.ts",
+        "Particle.ts",
+        "Material.ts",
+        "DEBUG.ts",
+        "main.ts"
+    ]
 }
