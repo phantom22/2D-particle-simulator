@@ -117,7 +117,7 @@ class Particle {
     collides_with:Particle[] = [];
     is_grounded = false;
 
-    // @ts-expect-error
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     region_bounds: [number,number,number,number]
 
     constructor(material_type:number, x:number, y:number, vx=0, vy=0, ax=0, ay=0) {
@@ -129,7 +129,8 @@ class Particle {
         this.ax = ax;
         this.ay = ay;
 
-        // @ts-expect-error TODO: assign regions manually
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // assign regions manually
     }
 
     /** Should the particle keep updating its physics values? */
@@ -146,7 +147,8 @@ class Particle {
         this.x += this.vx * fixedDeltaTime;
         this.y += this.vy * fixedDeltaTime;
 
-        // @ts-expect-error TODO: assign regions with function
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // assign regions with function
         // this means that whenever i assign a new region i have to remove this particle from the previous one
         // add it to the new region and sort from smallest to highest ID
     }

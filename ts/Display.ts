@@ -147,6 +147,7 @@ class Display {
             canvas.height = height;
             Display_updateCanvasSize = false;
             update_bounds();
+            update_grid();
         }
     }
     renderFrame(currFrame?:DOMHighResTimeStamp,prevFrame?:DOMHighResTimeStamp) {
@@ -155,6 +156,8 @@ class Display {
         deltaTime = currFrame - prevFrame;
 
         ctx.clearRect(0,0,width,height);
+
+        ctx.drawImage(GRID_CACHE, 0, 0);
         for (let i=0; i<particles.length; i+=10) {
             draw_particle(particles[i]);
             draw_particle(particles[i+1]);

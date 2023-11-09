@@ -1,78 +1,16 @@
-function _propagate(node, value) {
-    const oldValue = node.value;
-    node.value = value;
-}
-class NODE {
-    value;
-    left = null;
-    right = null;
-    constructor(value) {
-        this.value = value;
+function binarySearch(a, x) {
+    let l = 0, h = a.length;
+    while (l !== h) {
+        const m = ~~((l + h) / 2);
+        if (x === a[m]) {
+            return m;
+        }
+        else if (x > a[m])
+            l = m + 1;
+        else
+            h = m;
     }
-    insert(k) {
-        const _l = this.left === null, _r = this.right === null, v = this.value;
-        if (_l && _r) {
-            if (k < v) {
-                this.left = new NODE(k);
-            }
-            else {
-                this.right = new NODE(k);
-            }
-        }
-        else if (!_l && _r) {
-            let l = this.left.value;
-            if (v < k) {
-                this.right = new NODE(k);
-            }
-            else if (l < k && k < v) {
-                this.value = k;
-                this.right = new NODE(v);
-            }
-            else {
-                //this.left.value = k;
-                //this.value = l;
-                //this.right = new NODE(v);
-                this.left.insert(k);
-            }
-        }
-        else if (_l && !_r) {
-            let r = this.right.value;
-            if (k < v) {
-                this.left = new NODE(k);
-            }
-            else if (v < k && k < r) {
-                this.left = new NODE(v);
-                this.value = k;
-            }
-            else {
-                //this.left = new NODE(v);
-                //this.value = r;
-                //this.right.value = k;
-                this.right.insert(k);
-            }
-        }
-        else {
-            if (k > v) {
-                this.right.insert(k);
-            }
-            else {
-                this.left.insert(k);
-            }
-        }
-    }
-}
-class BST {
-    root;
-    constructor(node = null) {
-        this.root = node;
-    }
-    insert(value) {
-        if (this.root === null) {
-            this.root = new NODE(value);
-            return;
-        }
-        this.root.insert(value);
-    }
+    return -1;
 }
 /** Canvas width. Set to window.innerWidth. */
 let width = 0, 
@@ -213,12 +151,14 @@ class Display {
             canvas.height = height;
             Display_updateCanvasSize = false;
             update_bounds();
+            update_grid();
         }
     }
     renderFrame(currFrame, prevFrame) {
         this.adaptResolution();
         deltaTime = currFrame - prevFrame;
         ctx.clearRect(0, 0, width, height);
+        ctx.drawImage(GRID_CACHE, 0, 0);
         for (let i = 0; i < particles.length; i += 10) {
             draw_particle(particles[i]);
             draw_particle(particles[i + 1]);
@@ -331,8 +271,8 @@ function mouseup(e) {
 function mouseleave(e) {
     _drag_type = -1;
 }
-const particles = [], PARTICLE_WIDTH = 10, INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH;
-let physicsCaulculationsFromOrigin = (screen.width * 3) ** 2, snapToGrid = true;
+const particles = [], PARTICLE_WIDTH = 10, INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH, X_REGIONS = [], Y_REGIONS = [];
+let physicsCaulculationsFromOrigin = (2 * screen.width) ** 2, snapToGrid = true;
 /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
 let bounds_min_x = 0, 
 /** Visibility bounds - any particle with a y value higher than this can be visible vertically. */
@@ -426,6 +366,8 @@ class Particle {
     material;
     collides_with = [];
     is_grounded = false;
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    region_bounds;
     constructor(material_type, x, y, vx = 0, vy = 0, ax = 0, ay = 0) {
         this.material = new Material(material_type);
         this.x = x;
@@ -434,6 +376,8 @@ class Particle {
         this.vy = vy;
         this.ax = ax;
         this.ay = ay;
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // assign regions manually
     }
     /** Should the particle keep updating its physics values? */
     should_be_updated() {
@@ -447,6 +391,10 @@ class Particle {
         this.vy += this.ay * fixedDeltaTime;
         this.x += this.vx * fixedDeltaTime;
         this.y += this.vy * fixedDeltaTime;
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // assign regions with function
+        // this means that whenever i assign a new region i have to remove this particle from the previous one
+        // add it to the new region and sort from smallest to highest ID
     }
     /** Should the particle be rendered? */
     is_visible() {
@@ -464,7 +412,19 @@ class Particle {
         this.vy = 0;
     }
 }
-const PARTICLE_REGION_SIZE = PARTICLE_WIDTH * 5, INV_PARTICLE_REGION_SIZE = 1 / PARTICLE_REGION_SIZE;
+function intersect_xy_regions(x_reg, y_reg) {
+}
+function find_particle(x, y) {
+    let reg = world_to_region(x, y);
+    let x_reg = X_REGIONS[reg[0]];
+    if (x_reg === undefined)
+        return null;
+    let y_reg = Y_REGIONS[reg[1]];
+    if (y_reg === undefined)
+        return null;
+    return null;
+}
+const PARTICLE_REGION_SIZE = PARTICLE_WIDTH * 3, INV_PARTICLE_REGION_SIZE = 1 / PARTICLE_REGION_SIZE;
 const MATERIAL_CACHE = [];
 ;
 class Material {
@@ -495,6 +455,29 @@ class Material {
     Material.MAX_TYPE_VALUE = keys.length - 1;
     Material.TYPE_TO_NAME = (type) => keys[type] || "invalid type";
 })();
+const GRID_CACHE = document.createElement("canvas"), _grid_ctx = GRID_CACHE.getContext("2d");
+let gridColor = "rgba(255, 255, 255, 0.5)";
+function update_grid() {
+    let gridStart = world_to_cell(offset_x + PARTICLE_WIDTH, offset_y + PARTICLE_WIDTH), gridEnd = world_to_cell(offset_x + width + PARTICLE_WIDTH, offset_y + height + PARTICLE_WIDTH);
+    GRID_CACHE.width = width;
+    GRID_CACHE.height = height;
+    _grid_ctx.strokeStyle = gridColor;
+    _grid_ctx.setLineDash([1, 9]);
+    _grid_ctx.beginPath();
+    // vertical lines
+    for (let i = gridStart[0]; i < gridEnd[0]; i += PARTICLE_WIDTH) {
+        _grid_ctx.moveTo(i, 0);
+        _grid_ctx.lineTo(i, height);
+        //console.log({ start: [i,0], end: [i, height] });
+    }
+    // horizontal lines
+    for (let j = gridStart[1]; j < gridEnd[1]; j += PARTICLE_WIDTH) {
+        _grid_ctx.moveTo(0, j);
+        _grid_ctx.lineTo(width, j);
+        //console.log({ start: [0, j], end: [width, j] });
+    }
+    _grid_ctx.stroke();
+}
 function DEBUG_read_particle(id) {
     if (!particles[id])
         throw `${id} is not a valid particle id!`;

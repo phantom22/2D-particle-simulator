@@ -9,6 +9,7 @@
         "mouseEvents.ts",
         "Particle.ts",
         "Material.ts",
+        "grid.ts",
         "DEBUG.ts",
         "main.ts"
     ]
