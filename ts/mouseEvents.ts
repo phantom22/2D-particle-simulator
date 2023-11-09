@@ -4,6 +4,7 @@ let _drag_type: -1|0|1|2,
     _previous_mouse_position: [x:number, y:number],
     /** context: mouseEvents. Needed to reduce lag from the mouse Move event. Indicates last frame in which the event was registered. */
     _last_sample_frame: number,
+    _sample_counter: number,
     /** Current canvas scale. 1 is the default value. */
     scale: number,
     /** context: mouseEvents. How much can the scale change in a second. */
@@ -11,7 +12,8 @@ let _drag_type: -1|0|1|2,
       /** context: mouseEvents. Minimun scale value. */
 const _min_scale = 0.1,
       /** context: mouseEvents. Maximum scale value. */
-      _max_scale = 5;
+      _max_scale = 5,
+      _max_samples_per_frame = 3;
 
 let _is_dragging = false,
     _selected_particle: Particle;
@@ -24,6 +26,7 @@ function applyEventListeners(fps:number) {
     scale = 1;
     _is_dragging = false;
     _selected_particle = null,
+    _sample_counter = 0;
 
     canvas.addEventListener("wheel", mousewheel);
     canvas.addEventListener("mousedown", mousedown);
@@ -33,7 +36,7 @@ function applyEventListeners(fps:number) {
 }
 
 function mousewheel(this:HTMLCanvasElement, e:WheelEvent) {
-    if (frame_count === _last_sample_frame) return;
+    if (_last_sample_frame === frame_count) return;
 
     set_scale(e.deltaY);
     _last_sample_frame = frame_count;
@@ -64,7 +67,7 @@ function mousedown(this:HTMLCanvasElement, e:MouseEvent) {
 
 
 function mousemove(this:HTMLCanvasElement, e:MouseEvent) {
-    if (_drag_type === -1 || frame_count === _last_sample_frame) return;
+    if (_drag_type === -1 || _last_sample_frame === frame_count && _sample_counter === _max_samples_per_frame) return;
 
     const currentPos = [e.clientX, e.clientY] as [x:number, y:number];
     switch (_drag_type) {
@@ -84,6 +87,13 @@ function mousemove(this:HTMLCanvasElement, e:MouseEvent) {
             return;
     }
 
+    if (_last_sample_frame === frame_count) {
+        _sample_counter++;
+    }
+    else {
+        _sample_counter = 1;
+    }
+
     _previous_mouse_position = currentPos;
     _last_sample_frame = frame_count;
 }
@@ -93,7 +103,6 @@ function mouseup(this:HTMLCanvasElement, e:MouseEvent) {
     switch (e.button) {
         // Left button
         case 0:
-            console.log(screen_to_world(e.clientX, e.clientY))
             break;
         // Wheel/Middle button
         case 1:
@@ -107,6 +116,7 @@ function mouseup(this:HTMLCanvasElement, e:MouseEvent) {
     }
     _drag_type = -1;
     _last_sample_frame = -1;
+    _sample_counter = 0;
     _previous_mouse_position = null;
 }
 

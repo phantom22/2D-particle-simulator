@@ -190,7 +190,7 @@ let _drag_type,
 /** context: mouseEvents. Needed for mouse drag functionality. */
 _previous_mouse_position, 
 /** context: mouseEvents. Needed to reduce lag from the mouse Move event. Indicates last frame in which the event was registered. */
-_last_sample_frame, 
+_last_sample_frame, _sample_counter, 
 /** Current canvas scale. 1 is the default value. */
 scale, 
 /** context: mouseEvents. How much can the scale change in a second. */
@@ -198,7 +198,7 @@ scale_delta;
 /** context: mouseEvents. Minimun scale value. */
 const _min_scale = 0.1, 
 /** context: mouseEvents. Maximum scale value. */
-_max_scale = 5;
+_max_scale = 5, _max_samples_per_frame = 3;
 let _is_dragging = false, _selected_particle;
 function applyEventListeners(fps) {
     _drag_type = -1;
@@ -208,14 +208,15 @@ function applyEventListeners(fps) {
     scale = 1;
     _is_dragging = false;
     _selected_particle = null,
-        canvas.addEventListener("wheel", mousewheel);
+        _sample_counter = 0;
+    canvas.addEventListener("wheel", mousewheel);
     canvas.addEventListener("mousedown", mousedown);
     canvas.addEventListener("mousemove", mousemove);
     canvas.addEventListener("mouseup", mouseup);
     canvas.addEventListener("mouseleave", mouseleave);
 }
 function mousewheel(e) {
-    if (frame_count === _last_sample_frame)
+    if (_last_sample_frame === frame_count)
         return;
     set_scale(e.deltaY);
     _last_sample_frame = frame_count;
@@ -243,7 +244,7 @@ function mousedown(e) {
     _previous_mouse_position = [e.clientX, e.clientY];
 }
 function mousemove(e) {
-    if (_drag_type === -1 || frame_count === _last_sample_frame)
+    if (_drag_type === -1 || _last_sample_frame === frame_count && _sample_counter === _max_samples_per_frame)
         return;
     const currentPos = [e.clientX, e.clientY];
     switch (_drag_type) {
@@ -262,6 +263,12 @@ function mousemove(e) {
             _drag_type = -1;
             return;
     }
+    if (_last_sample_frame === frame_count) {
+        _sample_counter++;
+    }
+    else {
+        _sample_counter = 1;
+    }
     _previous_mouse_position = currentPos;
     _last_sample_frame = frame_count;
 }
@@ -270,7 +277,6 @@ function mouseup(e) {
     switch (e.button) {
         // Left button
         case 0:
-            console.log(screen_to_world(e.clientX, e.clientY));
             break;
         // Wheel/Middle button
         case 1:
@@ -284,13 +290,14 @@ function mouseup(e) {
     }
     _drag_type = -1;
     _last_sample_frame = -1;
+    _sample_counter = 0;
     _previous_mouse_position = null;
 }
 function mouseleave(e) {
     _drag_type = -1;
 }
-const particles = [], X_REGIONS = [], Y_REGIONS = [];
-let PARTICLE_WIDTH = 50, INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH;
+const X_REGIONS = [], Y_REGIONS = [];
+let particles = [], PARTICLE_WIDTH = 50, INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH;
 let physics_distance_from_offset = (2 * screen.width) ** 2, snap_to_grid = false;
 /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
 let bounds_min_x = 0, 
@@ -344,9 +351,12 @@ function world_to_screen(x, y) {
 }
 /** Converts a worlds positions to the cell position it belongs to. */
 function world_to_screen_cell(x, y) {
+    const sign_x = Math.sign(x), sign_y = Math.sign(y);
     return [
-        x - offset_x - x % PARTICLE_WIDTH,
-        y - offset_y - y % PARTICLE_WIDTH
+        // x - offset_x + (sign_x - 1) / 2 * PARTICLE_WIDTH - sign_x * (x % PARTICLE_WIDTH),
+        // y - offset_y + (sign_y - 1) / 2 * PARTICLE_WIDTH - sign_y * (y % PARTICLE_WIDTH)
+        x < 0 ? x - offset_x - PARTICLE_WIDTH + x % PARTICLE_WIDTH : x - offset_x - x % PARTICLE_WIDTH,
+        y < 0 ? y - offset_y - PARTICLE_WIDTH + y % PARTICLE_WIDTH : y - offset_y - y % PARTICLE_WIDTH
         //Math.floor((x - offset_x) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_x,
         //Math.floor((height - y + offset_y) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_y
     ];

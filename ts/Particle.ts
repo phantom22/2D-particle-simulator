@@ -1,8 +1,8 @@
-const particles = [] as Particle[],
-      X_REGIONS = [] as { [x_region_id:number]: [particle_id:number] },
+const X_REGIONS = [] as { [x_region_id:number]: [particle_id:number] },
       Y_REGIONS = [] as { [y_region_id:number]: [particle_id:number] };
 
-let PARTICLE_WIDTH = 50,
+let particles = [] as Particle[],
+    PARTICLE_WIDTH = 50,
     INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH;
 
 let physics_distance_from_offset = (2 * screen.width) ** 2,
@@ -72,9 +72,13 @@ function world_to_screen(x:number, y:number): [x:number, y:number] {
 
 /** Converts a worlds positions to the cell position it belongs to. */
 function world_to_screen_cell(x:number, y:number): [x:number, y:number] {
+    const sign_x = Math.sign(x),
+          sign_y = Math.sign(y);
     return [
-        x - offset_x - x % PARTICLE_WIDTH,
-        y - offset_y - y % PARTICLE_WIDTH
+        // x - offset_x + (sign_x - 1) / 2 * PARTICLE_WIDTH - sign_x * (x % PARTICLE_WIDTH),
+        // y - offset_y + (sign_y - 1) / 2 * PARTICLE_WIDTH - sign_y * (y % PARTICLE_WIDTH)
+        x < 0 ? x - offset_x - PARTICLE_WIDTH + x % PARTICLE_WIDTH : x - offset_x - x % PARTICLE_WIDTH,
+        y < 0 ? y - offset_y - PARTICLE_WIDTH + y % PARTICLE_WIDTH : y - offset_y - y % PARTICLE_WIDTH
         //Math.floor((x - offset_x) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_x,
         //Math.floor((height - y + offset_y) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_y
     ]
