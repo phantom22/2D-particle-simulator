@@ -22,21 +22,19 @@ offset_x = 0,
 offset_y = 0, canvas, ctx, 
 /** If true the canvas will keep updating (image and physics calculations). */
 unpaused = true, 
-/** Current canvas zoom. 1 is the default value. */
-zoom = 1, min_zoom = 0.1, max_zoom = 5, 
 /** This flag is set to true whenever the window is resized. On the next render frames the canvas width and height will be updated. */
-Display_updateCanvasSize = false, 
+_update_canvas_size = false, 
 /** Time between two physics frames. Measured in milliseconds. Read-only. */
-fixedDeltaTime, 
+fixed_delta_time, 
 /** Time took to render current frame. Measured in milliseconds. Read-only. */
-deltaTime, 
+delta_time, 
 /** Increments by one each rendered frame. */
-frameCount, physicsIntervalId, renderIntervalId;
+frame_count, physicsIntervalId, renderIntervalId;
 function draw_particle(p) {
     if (p === undefined || p.is_visible() === false)
         return;
     const pos = p.screen_position();
-    ctx.drawImage(MATERIAL_CACHE[p.material.type], pos[0], pos[1]);
+    ctx.drawImage(MATERIAL_CACHE[p.material.type], pos[0], pos[1], PARTICLE_WIDTH, PARTICLE_WIDTH);
 }
 class Display {
     /** How many frames after the page loads should the fps detector wait? Default=5 */
@@ -91,7 +89,7 @@ class Display {
                 }
                 else {
                     const avg = timestamps
-                        .map((v, i) => v - timestamps[i - 1]) // calc deltaTime between each timestamp
+                        .map((v, i) => v - timestamps[i - 1]) // calc delta_time between each timestamp
                         .slice(1) // remove timestamps[0] which is non relevant to the calculation
                         .reduce((a, b) => a + b) / (timestamps.length - 1) - Display.FPS_CALCULATION_EPSILON * 2; // divide the sum of the deltas by the sampleCount
                     let o;
@@ -129,12 +127,19 @@ class Display {
         Object.defineProperty(this, "fps", { value: fps, writable: false });
         fixedFps = fixedFps || fps;
         Object.defineProperty(this, "fixedFps", { value: fixedFps, writable: false });
-        fixedDeltaTime = 1000 / fixedFps;
+        fixed_delta_time = 1000 / fixedFps;
         applyEventListeners(fps);
         unpaused = true;
-        frameCount = 0;
-        Display_updateCanvasSize = true;
-        physicsIntervalId = setInterval(this.fixedPhysicsStep.bind(this), fixedDeltaTime);
+        frame_count = 0;
+        // this.adaptResolution()
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        _update_canvas_size = false;
+        // center_world_pos(0,0)
+        set_offset(0 - width * 0.5, 0 - height * 0.5);
+        physicsIntervalId = setInterval(this.fixedPhysicsStep.bind(this), fixed_delta_time);
         renderIntervalId = requestAnimationFrame(this.renderFrame.bind(this, 0, 0));
     }
     fixedPhysicsStep() {
@@ -144,19 +149,20 @@ class Display {
         }
     }
     adaptResolution() {
-        if (Display_updateCanvasSize) {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
-            Display_updateCanvasSize = false;
-            update_bounds();
-            update_grid();
-        }
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        _update_canvas_size = false;
+        const new_center_x = (bounds_min_x + bounds_max_x + PARTICLE_WIDTH) * 0.5, new_center_y = (bounds_min_y + bounds_max_y + PARTICLE_WIDTH) * 0.5;
+        //update_bounds();
+        // update_grid();
+        set_offset(new_center_x - width * 0.5, new_center_y - height * 0.5);
     }
     renderFrame(currFrame, prevFrame) {
-        this.adaptResolution();
-        deltaTime = currFrame - prevFrame;
+        if (_update_canvas_size)
+            this.adaptResolution();
+        delta_time = currFrame - prevFrame;
         ctx.clearRect(0, 0, width, height);
         ctx.drawImage(GRID_CACHE, 0, 0);
         for (let i = 0; i < particles.length; i += 10) {
@@ -171,39 +177,48 @@ class Display {
             draw_particle(particles[i + 8]);
             draw_particle(particles[i + 9]);
         }
-        frameCount++;
+        ctx.fillStyle = "red";
+        ctx.fillText(`${offset_x},${offset_y}`, 8, 10);
+        frame_count++;
         renderIntervalId = requestAnimationFrame(nextFrame => this.renderFrame.call(this, nextFrame, currFrame));
     }
 }
 Object.defineProperty(Display, "IS_RUN_ON_PHONE", { writable: false });
-window.addEventListener("resize", _ => Display_updateCanvasSize = true);
+window.addEventListener("resize", _ => _update_canvas_size = true);
 /** context: mouseEvents. -1 = none, 0 = drawing, 1 = moving, 2 = removing/inspecting */
 let _drag_type, 
 /** context: mouseEvents. Needed for mouse drag functionality. */
-_previousMousePosition, 
+_previous_mouse_position, 
 /** context: mouseEvents. Needed to reduce lag from the mouse Move event. Indicates last frame in which the event was registered. */
-_lastSampleFrame, 
+_last_sample_frame, 
 /** Current canvas scale. 1 is the default value. */
-scale = 1, 
+scale, 
 /** context: mouseEvents. How much can the scale change in a second. */
-scaleDelta;
+scale_delta;
 /** context: mouseEvents. Minimun scale value. */
-const _minScale = 0.1, 
+const _min_scale = 0.1, 
 /** context: mouseEvents. Maximum scale value. */
-_maxScale = 5;
+_max_scale = 5;
+let _is_dragging = false, _selected_particle;
 function applyEventListeners(fps) {
     _drag_type = -1;
-    _previousMousePosition = null;
-    scaleDelta = 1 / fps;
-    _lastSampleFrame = -1;
-    canvas.addEventListener("wheel", mousewheel);
+    _previous_mouse_position = null;
+    scale_delta = 30 / fps;
+    _last_sample_frame = -1;
+    scale = 1;
+    _is_dragging = false;
+    _selected_particle = null,
+        canvas.addEventListener("wheel", mousewheel);
     canvas.addEventListener("mousedown", mousedown);
     canvas.addEventListener("mousemove", mousemove);
     canvas.addEventListener("mouseup", mouseup);
     canvas.addEventListener("mouseleave", mouseleave);
 }
 function mousewheel(e) {
-    scale = Math.min(_minScale, Math.max(scale - Math.sign(e.deltaY) * scaleDelta, _maxScale));
+    if (frame_count === _last_sample_frame)
+        return;
+    set_scale(e.deltaY);
+    _last_sample_frame = frame_count;
 }
 function mousedown(e) {
     e.preventDefault();
@@ -225,10 +240,10 @@ function mousedown(e) {
             _drag_type = -1;
             break;
     }
-    _previousMousePosition = [e.clientX, e.clientY];
+    _previous_mouse_position = [e.clientX, e.clientY];
 }
 function mousemove(e) {
-    if (_drag_type === -1 || frameCount === _lastSampleFrame)
+    if (_drag_type === -1 || frame_count === _last_sample_frame)
         return;
     const currentPos = [e.clientX, e.clientY];
     switch (_drag_type) {
@@ -237,7 +252,7 @@ function mousemove(e) {
             break;
         // Wheel/Middle button
         case 1:
-            set_offset(offset_x + _previousMousePosition[0] - currentPos[0], offset_y + _previousMousePosition[1] - currentPos[1]);
+            set_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
             break;
         // Right button
         case 2:
@@ -247,14 +262,15 @@ function mousemove(e) {
             _drag_type = -1;
             return;
     }
-    _previousMousePosition = currentPos;
-    _lastSampleFrame = frameCount;
+    _previous_mouse_position = currentPos;
+    _last_sample_frame = frame_count;
 }
 function mouseup(e) {
     e.preventDefault();
     switch (e.button) {
         // Left button
         case 0:
+            console.log(DOM_to_world(e.clientX, e.clientY));
             break;
         // Wheel/Middle button
         case 1:
@@ -267,12 +283,15 @@ function mouseup(e) {
             break;
     }
     _drag_type = -1;
+    _last_sample_frame = -1;
+    _previous_mouse_position = null;
 }
 function mouseleave(e) {
     _drag_type = -1;
 }
-const particles = [], PARTICLE_WIDTH = 10, INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH, X_REGIONS = [], Y_REGIONS = [];
-let physicsCaulculationsFromOrigin = (2 * screen.width) ** 2, snapToGrid = true;
+const particles = [], X_REGIONS = [], Y_REGIONS = [];
+let PARTICLE_WIDTH = 50, INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH;
+let physicsCaulculationsFromOrigin = (2 * screen.width) ** 2, snap_to_grid = false;
 /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
 let bounds_min_x = 0, 
 /** Visibility bounds - any particle with a y value higher than this can be visible vertically. */
@@ -280,7 +299,7 @@ bounds_min_y = 0,
 /** Visibility bounds - any particle with a x smaller than this can be visible horizontally. */
 bounds_max_x = 0, 
 /** Visibility bounds - any particle with a y value smaller than this can be visible horizontally. */
-bounds_max_y = 0;
+bounds_max_y = 0, cell_offset_x = 0, cell_offset_y = 0;
 /** Updates the visibility bounds of the canvas for 2D culling. */
 function update_bounds() {
     bounds_min_x = offset_x - PARTICLE_WIDTH;
@@ -288,39 +307,25 @@ function update_bounds() {
     bounds_min_y = offset_y - PARTICLE_WIDTH;
     bounds_max_y = height + offset_y;
 }
+function set_scale(value) {
+    scale = Math.max(_min_scale, Math.min(scale - Math.sign(value) * scale_delta, _max_scale));
+    update_bounds();
+    update_grid();
+}
 function set_offset(x_value, y_value) {
     offset_x = x_value;
     offset_y = y_value;
-    bounds_min_x = x_value - PARTICLE_WIDTH;
-    bounds_max_x = width + x_value;
-    bounds_min_y = y_value - PARTICLE_WIDTH;
-    bounds_max_y = height + y_value;
-}
-function set_width(value) {
-    width = value;
-    bounds_max_x = value + offset_x;
-}
-function set_height(value) {
-    height = value;
-    bounds_max_y = height + offset_y;
-}
-function set_offset_x(value) {
-    offset_x = value;
-    bounds_min_x = value - PARTICLE_WIDTH;
-    bounds_max_x = width + value;
-    console.log(DEBUG_get_bounds());
-}
-function set_offset_y(value) {
-    offset_y = value;
-    bounds_min_y = value - PARTICLE_WIDTH;
-    bounds_max_y = height + value;
+    update_bounds();
+    cell_offset_x = PARTICLE_WIDTH - x_value % PARTICLE_WIDTH;
+    cell_offset_y = PARTICLE_WIDTH - y_value % PARTICLE_WIDTH;
+    update_grid();
 }
 /** Converts the event.y to the actual world position. */
 function DOM_to_world(clientX, clientY) {
     const rect = canvas.getBoundingClientRect(), scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
     return [
-        (clientX - rect.left) * scaleX,
-        (clientY - rect.top) * scaleY
+        (clientX - rect.left) * scaleX + offset_x,
+        (clientY - rect.top) * scaleY + offset_y
     ];
 }
 /** Converts screen position (absolute position) to world position. */
@@ -334,20 +339,25 @@ function screen_to_world(x, y) {
 function world_to_screen(x, y) {
     return [
         x - offset_x,
-        y - offset_y
+        y - offset_y //height - y + offset_y
     ];
 }
-function world_to_cell(x, y) {
+function world_to_screen_cell(x, y) {
     return [
-        ~~((x - offset_x) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH,
-        ~~((y - offset_y) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH
+        x - offset_x - x % PARTICLE_WIDTH,
+        y - offset_y - y % PARTICLE_WIDTH
+        //Math.floor((x - offset_x) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_x,
+        //Math.floor((height - y + offset_y) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_y
     ];
 }
 function world_to_region(x, y) {
     return [
-        ~~(this.x * INV_PARTICLE_REGION_SIZE),
-        ~~(this.y * INV_PARTICLE_REGION_SIZE)
+        Math.floor(x * INV_PARTICLE_REGION_SIZE),
+        Math.floor(y * INV_PARTICLE_REGION_SIZE)
     ];
+}
+function center_world_pos(x, y) {
+    set_offset(x - width * 0.5, y - height * 0.5);
 }
 class Particle {
     /** Particles x position. */
@@ -387,10 +397,10 @@ class Particle {
     step() {
         if (this.should_be_updated() === false)
             return;
-        this.vx += this.ax * fixedDeltaTime;
-        this.vy += this.ay * fixedDeltaTime;
-        this.x += this.vx * fixedDeltaTime;
-        this.y += this.vy * fixedDeltaTime;
+        this.vx += this.ax * fixed_delta_time;
+        this.vy += this.ay * fixed_delta_time;
+        this.x += this.vx * fixed_delta_time;
+        this.y += this.vy * fixed_delta_time;
         ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // assign regions with function
         // this means that whenever i assign a new region i have to remove this particle from the previous one
@@ -401,7 +411,7 @@ class Particle {
         return this.x > bounds_min_x && this.x < bounds_max_x && this.y > bounds_min_y && this.y < bounds_max_y;
     }
     screen_position() {
-        return snapToGrid === true ? world_to_cell(this.x, this.y) : world_to_screen(this.x, this.y);
+        return snap_to_grid === true ? world_to_screen_cell(this.x, this.y) : world_to_screen(this.x, this.y);
     }
     stop_horizontal_movement() {
         this.ax = 0;
@@ -456,27 +466,58 @@ class Material {
     Material.TYPE_TO_NAME = (type) => keys[type] || "invalid type";
 })();
 const GRID_CACHE = document.createElement("canvas"), _grid_ctx = GRID_CACHE.getContext("2d");
-let gridColor = "rgba(255, 255, 255, 0.5)";
+let gridColor = "rgba(255, 255, 255, 0.1)";
 function update_grid() {
-    let gridStart = world_to_cell(offset_x + PARTICLE_WIDTH, offset_y + PARTICLE_WIDTH), gridEnd = world_to_cell(offset_x + width + PARTICLE_WIDTH, offset_y + height + PARTICLE_WIDTH);
+    // let gridStart = world_to_screen_cell(offset_x + PARTICLE_WIDTH, offset_y + PARTICLE_WIDTH),
+    //     gridEnd = world_to_screen_cell(offset_x + width + PARTICLE_WIDTH, offset_y + height + PARTICLE_WIDTH);
+    let end_x = width - width % PARTICLE_WIDTH, end_y = height - height % PARTICLE_WIDTH, x_axis, y_axis;
+    if (offset_y < 0 && offset_y + height > 0) {
+        x_axis = -offset_y;
+    }
+    if (offset_x < 0 && offset_x + width > 0) {
+        y_axis = -offset_x;
+    }
+    //console.log({ cell_offset_x, end_x, cell_offset_y, end_y, offset_x, offset_y, x_axis, y_axis })
     GRID_CACHE.width = width;
     GRID_CACHE.height = height;
+    _grid_ctx.clearRect(0, 0, width, height);
     _grid_ctx.strokeStyle = gridColor;
-    _grid_ctx.setLineDash([1, 9]);
+    //_grid_ctx.setLineDash([1, 9]);
+    _grid_ctx.lineWidth = 1;
     _grid_ctx.beginPath();
     // vertical lines
-    for (let i = gridStart[0]; i < gridEnd[0]; i += PARTICLE_WIDTH) {
-        _grid_ctx.moveTo(i, 0);
-        _grid_ctx.lineTo(i, height);
-        //console.log({ start: [i,0], end: [i, height] });
+    for (let x = cell_offset_x; x < end_x; x += PARTICLE_WIDTH) {
+        if (x === y_axis)
+            continue;
+        _grid_ctx.moveTo(x, 0);
+        _grid_ctx.lineTo(x, height);
+        //console.log({ start: [x,0], end: [x, height] });
     }
     // horizontal lines
-    for (let j = gridStart[1]; j < gridEnd[1]; j += PARTICLE_WIDTH) {
-        _grid_ctx.moveTo(0, j);
-        _grid_ctx.lineTo(width, j);
+    for (let y = cell_offset_y; y < end_y; y += PARTICLE_WIDTH) {
+        if (y === x_axis)
+            continue;
+        _grid_ctx.moveTo(0, y);
+        _grid_ctx.lineTo(width, y);
         //console.log({ start: [0, j], end: [width, j] });
     }
     _grid_ctx.stroke();
+    if (x_axis !== undefined) {
+        _grid_ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        _grid_ctx.lineWidth = 4;
+        _grid_ctx.beginPath();
+        _grid_ctx.moveTo(0, x_axis);
+        _grid_ctx.lineTo(width, x_axis);
+        _grid_ctx.stroke();
+    }
+    if (y_axis !== undefined) {
+        _grid_ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        _grid_ctx.lineWidth = 4;
+        _grid_ctx.beginPath();
+        _grid_ctx.moveTo(y_axis, 0);
+        _grid_ctx.lineTo(y_axis, height);
+        _grid_ctx.stroke();
+    }
 }
 function DEBUG_read_particle(id) {
     if (!particles[id])

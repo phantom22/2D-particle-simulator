@@ -1,11 +1,12 @@
 const particles = [] as Particle[],
-      PARTICLE_WIDTH = 10,
-      INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH,
       X_REGIONS = [] as { [x_region_id:number]: [particle_id:number] },
       Y_REGIONS = [] as { [y_region_id:number]: [particle_id:number] };
 
-let physicsCaulculationsFromOrigin = (2 * screen.width) ** 2,
-    snapToGrid = true;
+let PARTICLE_WIDTH = 50,
+    INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH;
+
+let physics_distance_from_offset = (2 * screen.width) ** 2,
+    snap_to_grid = false;
 
     /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
 let bounds_min_x = 0,
@@ -14,7 +15,9 @@ let bounds_min_x = 0,
     /** Visibility bounds - any particle with a x smaller than this can be visible horizontally. */
     bounds_max_x = 0,
     /** Visibility bounds - any particle with a y value smaller than this can be visible horizontally. */
-    bounds_max_y = 0;
+    bounds_max_y = 0,
+    cell_offset_x = 0,
+    cell_offset_y = 0;
 
 /** Updates the visibility bounds of the canvas for 2D culling. */
 function update_bounds() {
@@ -24,78 +27,68 @@ function update_bounds() {
     bounds_max_y = height + offset_y;
 }
 
+function set_scale(value:number) {
+    scale = Math.max(_min_scale, Math.min(scale - Math.sign(value) * scale_delta, _max_scale));
+    update_bounds();
+    update_grid();
+}
+
 function set_offset(x_value:number, y_value:number) {
     offset_x = x_value;
     offset_y = y_value;
-    bounds_min_x = x_value - PARTICLE_WIDTH;
-    bounds_max_x = width + x_value;
-    bounds_min_y = y_value - PARTICLE_WIDTH;
-    bounds_max_y = height + y_value;
+    update_bounds();
+    cell_offset_x = PARTICLE_WIDTH - x_value % PARTICLE_WIDTH;
+    cell_offset_y = PARTICLE_WIDTH - y_value % PARTICLE_WIDTH;
+    update_grid();
 }
 
-function set_width(value:number) {
-    width = value;
-    bounds_max_x = value + offset_x;
-}
-
-function set_height(value:number) {
-    height = value;
-    bounds_max_y = height + offset_y;
-}
-
-function set_offset_x(value:number) {
-    offset_x = value;
-    bounds_min_x = value - PARTICLE_WIDTH;
-    bounds_max_x = width + value;
-    console.log(DEBUG_get_bounds())
-}
-
-function set_offset_y(value:number) {
-    offset_y = value;
-    bounds_min_y = value - PARTICLE_WIDTH;
-    bounds_max_y = height + value;
-}
-
-/** Converts the event.y to the actual world position. */
-function DOM_to_world(clientX:number, clientY:number): [x:number, y:number] {
+/** Converts screen (canvas) position to world position. */
+function screen_to_world(clientX:number, clientY:number): [x:number, y:number] {
     const rect = canvas.getBoundingClientRect(),
     scaleX = canvas.width / rect.width,
     scaleY = canvas.height / rect.height;
 
   return [
-    (clientX - rect.left) * scaleX,
-    (clientY - rect.top) * scaleY
+    (clientX - rect.left) * scaleX + offset_x,
+    (clientY - rect.top) * scaleY + offset_y
   ]
 }
 
 /** Converts screen position (absolute position) to world position. */
-function screen_to_world(x:number, y:number): [x:number, y:number] {
-    return [
-        x + offset_x,
-        y + offset_y
-    ]
-}
+// function screen_to_world(x:number, y:number): [x:number, y:number] {
+//     return [
+//         x + offset_x,
+//         y + offset_y
+//     ]
+// }
 
-/** Converts world position to screen position. */
+/** Converts world position to screen (canvas) position. */
 function world_to_screen(x:number, y:number): [x:number, y:number] {
     return [
         x - offset_x,
-        y - offset_y
+        y - offset_y//height - y + offset_y
     ]
 }
 
-function world_to_cell(x:number, y:number): [x:number, y:number] {
+/** Converts a worlds positions to the cell position it belongs to. */
+function world_to_screen_cell(x:number, y:number): [x:number, y:number] {
     return [
-        ~~((x - offset_x) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH,
-        ~~((y - offset_y) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH
+        x - offset_x - x % PARTICLE_WIDTH,
+        y - offset_y - y % PARTICLE_WIDTH
+        //Math.floor((x - offset_x) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_x,
+        //Math.floor((height - y + offset_y) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_y
     ]
 }
 
 function world_to_region(x:number, y:number): [x_region:number, y_region:number] {
     return [
-        ~~(this.x * INV_PARTICLE_REGION_SIZE),
-        ~~(this.y * INV_PARTICLE_REGION_SIZE)
+        Math.floor(x * INV_PARTICLE_REGION_SIZE),
+        Math.floor(y * INV_PARTICLE_REGION_SIZE)
     ]
+}
+
+function center_world_pos(x:number, y:number) {
+    set_offset(x - width*0.5, y - height*0.5);
 }
 
 class Particle {
@@ -135,17 +128,17 @@ class Particle {
 
     /** Should the particle keep updating its physics values? */
     should_be_updated() {
-        return (this.x - offset_x)**2 + (this.y - offset_y)**2 <= physicsCaulculationsFromOrigin
+        return (this.x - offset_x)**2 + (this.y - offset_y)**2 <= physics_distance_from_offset
     }
 
     /** Called during the fixedUpdate, this calculates the new speed and position of the particle. */
     step() {
         if (this.should_be_updated() === false) return;
 
-        this.vx += this.ax * fixedDeltaTime;
-        this.vy += this.ay * fixedDeltaTime;
-        this.x += this.vx * fixedDeltaTime;
-        this.y += this.vy * fixedDeltaTime;
+        this.vx += this.ax * fixed_delta_time;
+        this.vy += this.ay * fixed_delta_time;
+        this.x += this.vx * fixed_delta_time;
+        this.y += this.vy * fixed_delta_time;
 
         ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // assign regions with function
@@ -159,7 +152,7 @@ class Particle {
     }
 
     screen_position(): [x:number, y:number] {
-        return snapToGrid === true ? world_to_cell(this.x, this.y) : world_to_screen(this.x, this.y)
+        return snap_to_grid === true ? world_to_screen_cell(this.x, this.y) : world_to_screen(this.x, this.y)
     }
 
     stop_horizontal_movement() {

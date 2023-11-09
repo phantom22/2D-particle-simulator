@@ -1,23 +1,29 @@
     /** context: mouseEvents. -1 = none, 0 = drawing, 1 = moving, 2 = removing/inspecting */
 let _drag_type: -1|0|1|2,
     /** context: mouseEvents. Needed for mouse drag functionality. */
-    _previousMousePosition: [x:number, y:number],
+    _previous_mouse_position: [x:number, y:number],
     /** context: mouseEvents. Needed to reduce lag from the mouse Move event. Indicates last frame in which the event was registered. */
-    _lastSampleFrame: number,
+    _last_sample_frame: number,
     /** Current canvas scale. 1 is the default value. */
-    scale = 1,
+    scale: number,
     /** context: mouseEvents. How much can the scale change in a second. */
-    scaleDelta: number;
+    scale_delta: number;
       /** context: mouseEvents. Minimun scale value. */
-const _minScale = 0.1,
+const _min_scale = 0.1,
       /** context: mouseEvents. Maximum scale value. */
-      _maxScale = 5;
+      _max_scale = 5;
+
+let _is_dragging = false,
+    _selected_particle: Particle;
 
 function applyEventListeners(fps:number) {
     _drag_type = -1;
-    _previousMousePosition = null;
-    scaleDelta = 1 / fps;
-    _lastSampleFrame = -1;
+    _previous_mouse_position = null;
+    scale_delta = 30 / fps;
+    _last_sample_frame = -1;
+    scale = 1;
+    _is_dragging = false;
+    _selected_particle = null,
 
     canvas.addEventListener("wheel", mousewheel);
     canvas.addEventListener("mousedown", mousedown);
@@ -27,7 +33,10 @@ function applyEventListeners(fps:number) {
 }
 
 function mousewheel(this:HTMLCanvasElement, e:WheelEvent) {
-    scale = Math.min(_minScale, Math.max(scale - Math.sign(e.deltaY) * scaleDelta, _maxScale));
+    if (frame_count === _last_sample_frame) return;
+
+    set_scale(e.deltaY);
+    _last_sample_frame = frame_count;
 }
 
 function mousedown(this:HTMLCanvasElement, e:MouseEvent) {
@@ -50,11 +59,12 @@ function mousedown(this:HTMLCanvasElement, e:MouseEvent) {
             _drag_type = -1;
             break;
     }
-    _previousMousePosition = [e.clientX, e.clientY];
+    _previous_mouse_position = [e.clientX, e.clientY];
 }
 
+
 function mousemove(this:HTMLCanvasElement, e:MouseEvent) {
-    if (_drag_type === -1 || frameCount === _lastSampleFrame) return;
+    if (_drag_type === -1 || frame_count === _last_sample_frame) return;
 
     const currentPos = [e.clientX, e.clientY] as [x:number, y:number];
     switch (_drag_type) {
@@ -63,7 +73,7 @@ function mousemove(this:HTMLCanvasElement, e:MouseEvent) {
             break;
         // Wheel/Middle button
         case 1:
-            set_offset(offset_x + _previousMousePosition[0] - currentPos[0], offset_y + _previousMousePosition[1] - currentPos[1]);
+            set_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
             break;
         // Right button
         case 2:
@@ -74,8 +84,8 @@ function mousemove(this:HTMLCanvasElement, e:MouseEvent) {
             return;
     }
 
-    _previousMousePosition = currentPos;
-    _lastSampleFrame = frameCount;
+    _previous_mouse_position = currentPos;
+    _last_sample_frame = frame_count;
 }
 
 function mouseup(this:HTMLCanvasElement, e:MouseEvent) {
@@ -83,6 +93,7 @@ function mouseup(this:HTMLCanvasElement, e:MouseEvent) {
     switch (e.button) {
         // Left button
         case 0:
+            console.log(screen_to_world(e.clientX, e.clientY))
             break;
         // Wheel/Middle button
         case 1:
@@ -95,6 +106,8 @@ function mouseup(this:HTMLCanvasElement, e:MouseEvent) {
             break;
     }
     _drag_type = -1;
+    _last_sample_frame = -1;
+    _previous_mouse_position = null;
 }
 
 function mouseleave(this:HTMLCanvasElement, e:MouseEvent) {

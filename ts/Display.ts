@@ -1,5 +1,5 @@
 type CanvasSettings = {
-    fixedFps?:number;
+    fixed_fps?:number;
 };
 
     /** Canvas width. Set to window.innerWidth. */
@@ -14,26 +14,22 @@ let width = 0,
     ctx:CanvasRenderingContext2D,
     /** If true the canvas will keep updating (image and physics calculations). */
     unpaused = true,
-    /** Current canvas zoom. 1 is the default value. */
-    zoom = 1,
-    min_zoom = 0.1,
-    max_zoom = 5,
     /** This flag is set to true whenever the window is resized. On the next render frames the canvas width and height will be updated. */
-    Display_updateCanvasSize = false,
+    _update_canvas_size = false,
     /** Time between two physics frames. Measured in milliseconds. Read-only. */
-    fixedDeltaTime:number,
+    fixed_delta_time:number,
     /** Time took to render current frame. Measured in milliseconds. Read-only. */
-    deltaTime:number,
+    delta_time:number,
     /** Increments by one each rendered frame. */
-    frameCount:number,
-    physicsIntervalId:number,
-    renderIntervalId:number;
+    frame_count:number,
+    physics_interval_id:number,
+    render_interval_id:number;
 
 function draw_particle(p:Particle) {
     if (p === undefined || p.is_visible() === false) return;
 
     const pos = p.screen_position();
-    ctx.drawImage(MATERIAL_CACHE[p.material.type], pos[0], pos[1]);
+    ctx.drawImage(MATERIAL_CACHE[p.material.type], pos[0], pos[1], PARTICLE_WIDTH, PARTICLE_WIDTH);
 }
 
 class Display {
@@ -54,7 +50,7 @@ class Display {
     /** Max render frames per second. Read-only.*/
     readonly fps:number;
     /** Max physics frames per second. Read-only.*/
-    readonly fixedFps:number;
+    readonly fixed_fps:number;
 
     constructor(query:string, settings:CanvasSettings = {}) {
         const c = document.querySelector(query);
@@ -64,7 +60,7 @@ class Display {
             canvas = c;
             ctx = c.getContext("2d");
             this.#applySettings(settings);
-            this.#init().then(fps => this.start(fps, settings.fixedFps));
+            this.#init().then(fps => this.start(fps, settings.fixed_fps));
         }
         else throw `Couldn't find canvas with query '${query}'`;
     }
@@ -94,7 +90,7 @@ class Display {
                 }
                 else {
                     const avg = timestamps
-                                      .map((v,i)=>v-timestamps[i-1]) // calc deltaTime between each timestamp
+                                      .map((v,i)=>v-timestamps[i-1]) // calc delta_time between each timestamp
                                       .slice(1) // remove timestamps[0] which is non relevant to the calculation
                                       .reduce((a,b)=>a+b)/(timestamps.length-1) - Display.FPS_CALCULATION_EPSILON * 2; // divide the sum of the deltas by the sampleCount
                     let o;
@@ -119,46 +115,57 @@ class Display {
             id = requestAnimationFrame(frameStep);
         });
     }
-    start(fps:number, fixedFps:number) {
+    start(fps:number, fixed_fps:number) {
         Object.defineProperty(this,"fps",{value:fps,writable:false});
-        fixedFps = fixedFps || fps;
-        Object.defineProperty(this,"fixedFps",{value:fixedFps,writable:false});
-        fixedDeltaTime = 1000 / fixedFps;
+        fixed_fps = fixed_fps || fps;
+        Object.defineProperty(this,"fixed_fps",{value:fixed_fps,writable:false});
+        fixed_delta_time = 1000 / fixed_fps;
         applyEventListeners(fps);
 
         unpaused = true;
-        frameCount = 0;
-        Display_updateCanvasSize = true;
+        frame_count = 0;
 
-        physicsIntervalId = setInterval(this.fixedPhysicsStep.bind(this), fixedDeltaTime);
-        renderIntervalId = requestAnimationFrame(this.renderFrame.bind(this,0,0))
+        // this.adapt_canvas_size()
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        _update_canvas_size = false;
+        // center_world_pos(0,0)
+        set_offset(0 - width*0.5, 0 - height*0.5)
+
+        physics_interval_id = setInterval(this.fixed_physics_step.bind(this), fixed_delta_time);
+        render_interval_id = requestAnimationFrame(this.render_step.bind(this,0,0))
     }
-    fixedPhysicsStep() {
+    fixed_physics_step() {
         if (document.hidden===false && unpaused) {
             for (let i=0; i<particles.length; i++)
                 particles[i].step();
         }
     }
-    adaptResolution() {
-        if (Display_updateCanvasSize) {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
-            Display_updateCanvasSize = false;
-            update_bounds();
-            update_grid();
-        }
+    adapt_canvas_size() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        _update_canvas_size = false;
+        const new_center_x = (bounds_min_x + bounds_max_x + PARTICLE_WIDTH) * 0.5,
+              new_center_y = (bounds_min_y + bounds_max_y + PARTICLE_WIDTH) * 0.5;
+
+        //update_bounds();
+        // update_grid();
+        set_offset(new_center_x - width*0.5, new_center_y - height*0.5)
+
     }
-    renderFrame(currFrame?:DOMHighResTimeStamp,prevFrame?:DOMHighResTimeStamp) {
-        this.adaptResolution();
+    render_step(currFrame?:DOMHighResTimeStamp,prevFrame?:DOMHighResTimeStamp) {
+        if (_update_canvas_size) this.adapt_canvas_size();
         
-        deltaTime = currFrame - prevFrame;
+        delta_time = currFrame - prevFrame;
 
         ctx.clearRect(0,0,width,height);
-
         ctx.drawImage(GRID_CACHE, 0, 0);
-        for (let i=0; i<particles.length; i+=10) {
+
+        for (let i=0; i<particles.length; i += 10) {
             draw_particle(particles[i]);
             draw_particle(particles[i+1]);
             draw_particle(particles[i+2]);
@@ -171,11 +178,14 @@ class Display {
             draw_particle(particles[i+9]);
         }
 
-        frameCount++;
+        ctx.fillStyle = "red";
+        ctx.fillText(`${offset_x},${offset_y}`,8,10);
 
-        renderIntervalId = requestAnimationFrame(nextFrame => this.renderFrame.call(this,nextFrame,currFrame));
+        frame_count++;
+
+        render_interval_id = requestAnimationFrame(nextFrame => this.render_step.call(this,nextFrame,currFrame));
     }
 }
 Object.defineProperty(Display,"IS_RUN_ON_PHONE",{writable:false});
 
-window.addEventListener("resize", _ => Display_updateCanvasSize = true);
+window.addEventListener("resize", _ => _update_canvas_size = true);
