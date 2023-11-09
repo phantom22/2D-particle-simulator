@@ -8,8 +8,8 @@ function update_grid() {
     // let gridStart = world_to_screen_cell(offset_x + PARTICLE_WIDTH, offset_y + PARTICLE_WIDTH),
     //     gridEnd = world_to_screen_cell(offset_x + width + PARTICLE_WIDTH, offset_y + height + PARTICLE_WIDTH);
 
-    let end_x = width - width % PARTICLE_WIDTH,
-        end_y = height - height % PARTICLE_WIDTH,
+    let end_x = width,
+        end_y = height,
         x_axis, y_axis;
 
     if (offset_y < 0 && offset_y + height > 0) {
@@ -32,7 +32,7 @@ function update_grid() {
     _grid_ctx.beginPath();
 
     // vertical lines
-    for (let x = cell_offset_x; x<end_x; x += PARTICLE_WIDTH) {
+    for (let x = cell_offset_x - PARTICLE_WIDTH; x<end_x; x += PARTICLE_WIDTH) {
         if (x === y_axis) continue;
 
         _grid_ctx.moveTo(x, 0);
@@ -41,7 +41,7 @@ function update_grid() {
     }
 
     // horizontal lines
-    for (let y = cell_offset_y; y<end_y; y += PARTICLE_WIDTH) {
+    for (let y = cell_offset_y - PARTICLE_WIDTH; y<end_y; y += PARTICLE_WIDTH) {
         if (y === x_axis) continue;
 
         _grid_ctx.moveTo(0, y);

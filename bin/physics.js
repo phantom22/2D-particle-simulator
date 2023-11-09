@@ -29,7 +29,7 @@ fixed_delta_time,
 /** Time took to render current frame. Measured in milliseconds. Read-only. */
 delta_time, 
 /** Increments by one each rendered frame. */
-frame_count, physicsIntervalId, renderIntervalId;
+frame_count, physics_interval_id, render_interval_id;
 function draw_particle(p) {
     if (p === undefined || p.is_visible() === false)
         return;
@@ -52,7 +52,7 @@ class Display {
     /** Max render frames per second. Read-only.*/
     fps;
     /** Max physics frames per second. Read-only.*/
-    fixedFps;
+    fixed_fps;
     constructor(query, settings = {}) {
         const c = document.querySelector(query);
         if (c instanceof HTMLCanvasElement) {
@@ -61,7 +61,7 @@ class Display {
             canvas = c;
             ctx = c.getContext("2d");
             this.#applySettings(settings);
-            this.#init().then(fps => this.start(fps, settings.fixedFps));
+            this.#init().then(fps => this.start(fps, settings.fixed_fps));
         }
         else
             throw `Couldn't find canvas with query '${query}'`;
@@ -123,15 +123,15 @@ class Display {
             id = requestAnimationFrame(frameStep);
         });
     }
-    start(fps, fixedFps) {
+    start(fps, fixed_fps) {
         Object.defineProperty(this, "fps", { value: fps, writable: false });
-        fixedFps = fixedFps || fps;
-        Object.defineProperty(this, "fixedFps", { value: fixedFps, writable: false });
-        fixed_delta_time = 1000 / fixedFps;
+        fixed_fps = fixed_fps || fps;
+        Object.defineProperty(this, "fixed_fps", { value: fixed_fps, writable: false });
+        fixed_delta_time = 1000 / fixed_fps;
         applyEventListeners(fps);
         unpaused = true;
         frame_count = 0;
-        // this.adaptResolution()
+        // this.adapt_canvas_size()
         width = window.innerWidth;
         height = window.innerHeight;
         canvas.width = width;
@@ -139,16 +139,16 @@ class Display {
         _update_canvas_size = false;
         // center_world_pos(0,0)
         set_offset(0 - width * 0.5, 0 - height * 0.5);
-        physicsIntervalId = setInterval(this.fixedPhysicsStep.bind(this), fixed_delta_time);
-        renderIntervalId = requestAnimationFrame(this.renderFrame.bind(this, 0, 0));
+        physics_interval_id = setInterval(this.fixed_physics_step.bind(this), fixed_delta_time);
+        render_interval_id = requestAnimationFrame(this.render_step.bind(this, 0, 0));
     }
-    fixedPhysicsStep() {
+    fixed_physics_step() {
         if (document.hidden === false && unpaused) {
             for (let i = 0; i < particles.length; i++)
                 particles[i].step();
         }
     }
-    adaptResolution() {
+    adapt_canvas_size() {
         width = window.innerWidth;
         height = window.innerHeight;
         canvas.width = width;
@@ -159,9 +159,9 @@ class Display {
         // update_grid();
         set_offset(new_center_x - width * 0.5, new_center_y - height * 0.5);
     }
-    renderFrame(currFrame, prevFrame) {
+    render_step(currFrame, prevFrame) {
         if (_update_canvas_size)
-            this.adaptResolution();
+            this.adapt_canvas_size();
         delta_time = currFrame - prevFrame;
         ctx.clearRect(0, 0, width, height);
         ctx.drawImage(GRID_CACHE, 0, 0);
@@ -180,7 +180,7 @@ class Display {
         ctx.fillStyle = "red";
         ctx.fillText(`${offset_x},${offset_y}`, 8, 10);
         frame_count++;
-        renderIntervalId = requestAnimationFrame(nextFrame => this.renderFrame.call(this, nextFrame, currFrame));
+        render_interval_id = requestAnimationFrame(nextFrame => this.render_step.call(this, nextFrame, currFrame));
     }
 }
 Object.defineProperty(Display, "IS_RUN_ON_PHONE", { writable: false });
@@ -270,7 +270,7 @@ function mouseup(e) {
     switch (e.button) {
         // Left button
         case 0:
-            console.log(DOM_to_world(e.clientX, e.clientY));
+            console.log(screen_to_world(e.clientX, e.clientY));
             break;
         // Wheel/Middle button
         case 1:
@@ -291,7 +291,7 @@ function mouseleave(e) {
 }
 const particles = [], X_REGIONS = [], Y_REGIONS = [];
 let PARTICLE_WIDTH = 50, INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH;
-let physicsCaulculationsFromOrigin = (2 * screen.width) ** 2, snap_to_grid = false;
+let physics_distance_from_offset = (2 * screen.width) ** 2, snap_to_grid = false;
 /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
 let bounds_min_x = 0, 
 /** Visibility bounds - any particle with a y value higher than this can be visible vertically. */
@@ -320,8 +320,8 @@ function set_offset(x_value, y_value) {
     cell_offset_y = PARTICLE_WIDTH - y_value % PARTICLE_WIDTH;
     update_grid();
 }
-/** Converts the event.y to the actual world position. */
-function DOM_to_world(clientX, clientY) {
+/** Converts screen (canvas) position to world position. */
+function screen_to_world(clientX, clientY) {
     const rect = canvas.getBoundingClientRect(), scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
     return [
         (clientX - rect.left) * scaleX + offset_x,
@@ -329,19 +329,20 @@ function DOM_to_world(clientX, clientY) {
     ];
 }
 /** Converts screen position (absolute position) to world position. */
-function screen_to_world(x, y) {
-    return [
-        x + offset_x,
-        y + offset_y
-    ];
-}
-/** Converts world position to screen position. */
+// function screen_to_world(x:number, y:number): [x:number, y:number] {
+//     return [
+//         x + offset_x,
+//         y + offset_y
+//     ]
+// }
+/** Converts world position to screen (canvas) position. */
 function world_to_screen(x, y) {
     return [
         x - offset_x,
         y - offset_y //height - y + offset_y
     ];
 }
+/** Converts a worlds positions to the cell position it belongs to. */
 function world_to_screen_cell(x, y) {
     return [
         x - offset_x - x % PARTICLE_WIDTH,
@@ -391,7 +392,7 @@ class Particle {
     }
     /** Should the particle keep updating its physics values? */
     should_be_updated() {
-        return (this.x - offset_x) ** 2 + (this.y - offset_y) ** 2 <= physicsCaulculationsFromOrigin;
+        return (this.x - offset_x) ** 2 + (this.y - offset_y) ** 2 <= physics_distance_from_offset;
     }
     /** Called during the fixedUpdate, this calculates the new speed and position of the particle. */
     step() {
@@ -470,7 +471,7 @@ let gridColor = "rgba(255, 255, 255, 0.1)";
 function update_grid() {
     // let gridStart = world_to_screen_cell(offset_x + PARTICLE_WIDTH, offset_y + PARTICLE_WIDTH),
     //     gridEnd = world_to_screen_cell(offset_x + width + PARTICLE_WIDTH, offset_y + height + PARTICLE_WIDTH);
-    let end_x = width - width % PARTICLE_WIDTH, end_y = height - height % PARTICLE_WIDTH, x_axis, y_axis;
+    let end_x = width, end_y = height, x_axis, y_axis;
     if (offset_y < 0 && offset_y + height > 0) {
         x_axis = -offset_y;
     }
@@ -486,7 +487,7 @@ function update_grid() {
     _grid_ctx.lineWidth = 1;
     _grid_ctx.beginPath();
     // vertical lines
-    for (let x = cell_offset_x; x < end_x; x += PARTICLE_WIDTH) {
+    for (let x = cell_offset_x - PARTICLE_WIDTH; x < end_x; x += PARTICLE_WIDTH) {
         if (x === y_axis)
             continue;
         _grid_ctx.moveTo(x, 0);
@@ -494,7 +495,7 @@ function update_grid() {
         //console.log({ start: [x,0], end: [x, height] });
     }
     // horizontal lines
-    for (let y = cell_offset_y; y < end_y; y += PARTICLE_WIDTH) {
+    for (let y = cell_offset_y - PARTICLE_WIDTH; y < end_y; y += PARTICLE_WIDTH) {
         if (y === x_axis)
             continue;
         _grid_ctx.moveTo(0, y);
@@ -532,4 +533,4 @@ function DEBUG_read_particle(id) {
 function DEBUG_get_bounds() {
     return { bounds_min_x, bounds_max_x, bounds_min_y, bounds_max_y };
 }
-const display = new Display("#display", { fixedFps: 60 });
+const display = new Display("#display", { fixed_fps: 60 });
