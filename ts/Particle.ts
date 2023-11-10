@@ -1,10 +1,9 @@
-const X_REGIONS = [] as { [x_region_id:number]: [particle_id:number] },
-      Y_REGIONS = [] as { [y_region_id:number]: [particle_id:number] };
-
+    /** This array contains all the particles to be rendered. */
 let particles = [] as Particle[],
-    particle_width = 50,
+    particle_width = 10,
     inv_particle_width = 1 / particle_width,
-    physics_distance_from_offset = (2 * screen.width) ** 2,
+    /** Max distance from the origin for a particle to be emulated physically. */
+    physics_distance_from_offset:number,
     snap_to_grid = false,
     /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
     bounds_x_min = 0,
@@ -30,7 +29,7 @@ function update_bounds() {
     bounds_x_max = (width + offset_x) * scale;
     bounds_y_min = (offset_y - particle_width) * scale;
     bounds_y_max = (height + offset_y) * scale;
-    physics_distance_from_offset = (2 * screen.width) ** 2 * scale;
+    physics_distance_from_offset = (width ** 2 + height ** 2) * height * 3 / 2;
 }
 
 /**
@@ -80,14 +79,6 @@ function screen_to_world(screen_x:number, screen_y:number): [world_x:number, wor
   ]
 }
 
-/** Converts screen position (absolute position) to world position. */
-// function screen_to_world(x:number, y:number): [x:number, y:number] {
-//     return [
-//         x + offset_x,
-//         y + offset_y
-//     ]
-// }
-
 /** 
  * Converts world position to screen (canvas) position. 
  * 
@@ -96,28 +87,23 @@ function screen_to_world(screen_x:number, screen_y:number): [world_x:number, wor
 function world_to_screen(world_x:number, world_y:number): [screen_x:number, screen_y:number] {
     return [
         world_x * inv_scale - offset_x,
-        -world_y * inv_scale - offset_y//height - y + offset_y
+        -world_y * inv_scale - offset_y
     ]
 }
 
 /** 
- * Converts a worlds positions to the cell position it belongs to. 
+ * Converts a worlds position to the cell position it belongs to. 
  * 
  * outcome changes if x<0 or y<0.
  */
-function world_to_screen_cell(x:number, y:number): [screen_cell_x:number, screen_cell_y:number] {
+function world_to_screen_cell(world_x:number, world_y:number): [screen_cell_x:number, screen_cell_y:number] {
+    let x_pr = world_x < 0 ? -PARTICLE_RESOLUTION : 0,
+        y_pr = world_y > 0 ? -PARTICLE_RESOLUTION : 0;
     return [
-        x > 0 ? (x - x % particle_width) * inv_scale - offset_x : (x - (particle_width + x % particle_width)) * inv_scale - offset_x,
-        y > 0 ? (y - y % particle_width) * inv_scale - offset_y : (y - (particle_width + y % particle_width)) * inv_scale - offset_y
+        (world_x - world_x % PARTICLE_RESOLUTION + x_pr) * inv_scale - offset_x,
+        (world_y % PARTICLE_RESOLUTION - world_y + y_pr) * inv_scale - offset_y
     ]
 }
-
-// function world_to_region(x:number, y:number): [x_region:number, y_region:number] {
-//     return [
-//         Math.floor(x * INV_PARTICLE_REGION_SIZE),
-//         Math.floor(y * INV_PARTICLE_REGION_SIZE)
-//     ]
-// }
 
 /** 
  * Centers the camera to the specified world position.
@@ -128,6 +114,14 @@ function camera_look_at(world_x:number, world_y:number) {
     set_offset(world_x*inv_scale - width*0.5, (-world_y*inv_scale - height*0.5));
 }
 
+function camera_look_at_screen_center() {
+    const new_center_x = (bounds_x_min + bounds_x_max + PARTICLE_RESOLUTION) * 0.5,
+          new_center_y = (bounds_y_min + bounds_y_max + PARTICLE_RESOLUTION) * 0.5;
+    set_offset(new_center_x - width*0.5, new_center_y - height*0.5);
+}
+
+
+console.warn("Particle.should_be_updated() is yet to be implemented!");
 class Particle {
 
     /** Particles x position. */
@@ -144,11 +138,6 @@ class Particle {
     ay:number;
     /** Particles material.  */
     material:Material;
-    // collides_with:Particle[] = [];
-    // is_grounded = false;
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // region_bounds: [number,number,number,number]
 
     constructor(material_type:number, x:number, y:number, vx=0, vy=0, ax=0, ay=0) {
         this.material = new Material(material_type);
@@ -158,14 +147,11 @@ class Particle {
         this.vy = vy;
         this.ax = ax;
         this.ay = ay;
-
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        // assign regions manually
     }
 
     /** Should the particle keep updating its physics values? */
     should_be_updated() {
-        return (this.x - offset_x)**2 + (this.y - offset_y)**2 <= physics_distance_from_offset
+        return true;//(this.x - offset_x)**2 + (-this.y - offset_y)**2 <= physics_distance_from_offset
     }
 
     /** Called during the fixedUpdate, this calculates the new speed and position of the particle. */
@@ -174,11 +160,6 @@ class Particle {
         this.vy += this.ay * fixed_delta_time;
         this.x += this.vx * fixed_delta_time;
         this.y += this.vy * fixed_delta_time;
-
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        // assign regions with function
-        // this means that whenever i assign a new region i have to remove this particle from the previous one
-        // add it to the new region and sort from smallest to highest ID
     }
 
     /** Should the particle be rendered? */
@@ -201,22 +182,3 @@ class Particle {
         this.vy = 0;
     }
 }
-
-// function intersect_xy_regions(x_reg:number[], y_reg:number[]) {
-    
-// }
-
-// function find_particle(x:number, y:number): null|Particle {
-//     let reg = world_to_region(x,y);
-    
-//     let x_reg = X_REGIONS[reg[0]];
-//     if (x_reg === undefined) return null;
-
-//     let y_reg = Y_REGIONS[reg[1]];
-//     if (y_reg === undefined) return null;
-
-//     return null;
-// }
-
-const PARTICLE_REGION_SIZE = particle_width * 3,
-      INV_PARTICLE_REGION_SIZE = 1 / PARTICLE_REGION_SIZE;

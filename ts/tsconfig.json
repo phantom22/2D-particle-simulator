@@ -6,7 +6,7 @@
     "files": [
         "bst.ts",
         "Display.ts",
-        "mouseEvents.ts",
+        "events.ts",
         "Particle.ts",
         "Material.ts",
         "grid.ts",

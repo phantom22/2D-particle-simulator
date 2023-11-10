@@ -1,13 +1,11 @@
+    /** This object contains the pre-rendered CanvasImageSource of the grid to be drawn on screen. */
 const GRID_CACHE = document.createElement("canvas"),
       _grid_ctx = GRID_CACHE.getContext("2d");
 
-let grid_color = "rgba(255, 255, 255, 0.1)",
-    grid_is_dotted = false;
+let grid_color = "#0f0f0f";
 
+/** This function updates the cached grid with a new one. */
 function update_grid() {
-
-    // let gridStart = world_to_screen_cell(offset_x + particle_width, offset_y + particle_width),
-    //     gridEnd = world_to_screen_cell(offset_x + width + particle_width, offset_y + height + particle_width);
 
     let end_x = width,
         end_y = height,
@@ -20,16 +18,12 @@ function update_grid() {
         y_axis = -offset_x;
     }
 
-    //console.log({ cell_offset_x, end_x, cell_offset_y, end_y, offset_x, offset_y, x_axis, y_axis })
-
     GRID_CACHE.width = width;
     GRID_CACHE.height = height;
     _grid_ctx.clearRect(0, 0, width, height);
     
     _grid_ctx.strokeStyle = grid_color;
-    if (grid_is_dotted) _grid_ctx.setLineDash([Math.ceil(2*particle_width/10), particle_width - Math.ceil(2*particle_width/10)]);
-    _grid_ctx.lineWidth = 1;
-
+    _grid_ctx.lineWidth = 1.5;
     _grid_ctx.beginPath();
 
     // vertical lines
@@ -38,7 +32,6 @@ function update_grid() {
 
         _grid_ctx.moveTo(x, 0);
         _grid_ctx.lineTo(x, height);
-        //console.log({ start: [x,0], end: [x, height] });
     }
 
     // horizontal lines
@@ -48,12 +41,9 @@ function update_grid() {
         _grid_ctx.moveTo(0, y);
         _grid_ctx.lineTo(width, y);
 
-        //console.log({ start: [0, j], end: [width, j] });
     }
 
     _grid_ctx.stroke();
-
-    if (grid_is_dotted) _grid_ctx.setLineDash([width]);
 
     _grid_ctx.strokeStyle = "rgba(255,255,255,0.5)";
     _grid_ctx.lineWidth = 4;

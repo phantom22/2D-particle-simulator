@@ -175,9 +175,7 @@ class Display {
         canvas.width = width;
         canvas.height = height;
 
-        const new_center_x = (bounds_x_min + bounds_x_max + particle_width * scale) * 0.5,
-              new_center_y = (bounds_y_min + bounds_y_max + particle_width * scale) * 0.5;
-        set_offset(new_center_x - width*0.5, new_center_y - height*0.5);
+        camera_look_at_screen_center();
 
         _update_canvas_size = false;
 
@@ -205,7 +203,7 @@ class Display {
             const p_x = particles[selected_particle].x,
                   p_y = particles[selected_particle].y;
             
-            camera_look_at(p_x, p_y)
+            camera_look_at(p_x + particle_width*scale*0.5, p_y - particle_width*scale*0.5)
         }
 
         ctx.clearRect(0,0,width,height);
@@ -236,5 +234,3 @@ class Display {
     }
 }
 Object.defineProperty(Display,"IS_RUN_ON_PHONE",{writable:false});
-
-window.addEventListener("resize", _ => _update_canvas_size = true);

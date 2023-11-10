@@ -1,4 +1,18 @@
-    /** context: mouseEvents. -1 = none, 0 = drawing, 1 = moving, 2 = removing/inspecting */
+// On window resize, trigger adapting canvas resolution.
+window.addEventListener("resize", _ => _update_canvas_size = true);
+
+window.addEventListener("keypress", e => {
+    switch (e.key) {
+        // On spacebar key press, toggle pause.
+        case " ":
+            unpaused = !unpaused;
+            break;
+        default:
+            break;
+    }
+});
+
+/** context: mouseEvents. -1 = none, 0 = drawing, 1 = moving, 2 = removing/inspecting */
 let _drag_type: -1|0|1|2,
     /** context: mouseEvents. Needed for mouse drag functionality. */
     _previous_mouse_position: [x:number, y:number],
@@ -11,9 +25,9 @@ let _drag_type: -1|0|1|2,
     /** context: mouseEvents. How much can the scale change in a second. */
     scale_delta: number;
       /** context: mouseEvents. Minimun scale value. */
-const _min_scale = 0.05,
+const _min_scale = 0.08,
       /** context: mouseEvents. Maximum scale value. */
-      _max_scale = 10,
+      _max_scale = 6.25,
       _max_samples_per_frame = 3;
 
 let _is_dragging = false,
