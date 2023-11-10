@@ -12,29 +12,30 @@ function binarySearch(a, x) {
     }
     return -1;
 }
-/** Canvas width. Set to window.innerWidth. */
-let width = 0, 
-/** Canvas height. Set to window.innerHeight. */
-height = 0, 
+/** Canvas width. Constantly updated to window.innerWidth. */
+let width, 
+/** Canvas height. Constantly updated to window.innerHeight. */
+height, 
 /** Canvas offset x. How far away is the x component from 0. */
-offset_x = 0, 
+offset_x, 
 /** Canvas offset y. How far away is the y component from 0. */
-offset_y = 0, canvas, ctx, 
+offset_y, canvas, ctx, 
 /** If true the canvas will keep updating (image and physics calculations). */
-unpaused = true, 
+unpaused, 
 /** This flag is set to true whenever the window is resized. On the next render frames the canvas width and height will be updated. */
-_update_canvas_size = false, 
+_update_canvas_size, 
 /** Time between two physics frames. Measured in milliseconds. Read-only. */
 fixed_delta_time, 
 /** Time took to render current frame. Measured in milliseconds. Read-only. */
 delta_time, 
 /** Increments by one each rendered frame. */
 frame_count, physics_interval_id, render_interval_id;
+/** This function, before drawing a particles, asserts that it's not an undefined value and if it's a visible particle. */
 function draw_particle(p) {
     if (p === undefined || p.is_visible() === false)
         return;
     const pos = p.screen_position();
-    ctx.drawImage(MATERIAL_CACHE[p.material.type], pos[0], pos[1], PARTICLE_WIDTH, PARTICLE_WIDTH);
+    ctx.drawImage(MATERIAL_CACHE[p.material.type], pos[0], pos[1], particle_width, particle_width);
 }
 class Display {
     /** How many frames after the page loads should the fps detector wait? Default=5 */
@@ -68,7 +69,7 @@ class Display {
     }
     #applySettings({} = {}) {
     }
-    /** Method used to detect screen refresh rate. If refresh rate was already calculated => resolve with that value */
+    /** Method used to detect screen refresh rate. If refresh rate was already, resolve immediately with that value. */
     #init() {
         return new Promise(resolve => {
             if (Display.REFRESH_RATE !== undefined) {
@@ -123,6 +124,17 @@ class Display {
             id = requestAnimationFrame(frameStep);
         });
     }
+    /**
+     * This method is called before the rendering loop is started. It's defined as follows:
+     *
+     * - finalize fps.
+     * - if fixed_fps is higher than fps, clamp it down; calculate fixed_delta_time.
+     * - apply event listeners to canvas.
+     * - initialize frame_count.
+     * - set canvas resolution to window.innerWidth, window.innerHeight
+     * - center camera to 0,0.
+     * - begin physics and rendering loop.
+     */
     start(fps, fixed_fps) {
         Object.defineProperty(this, "fps", { value: fps, writable: false });
         if (fixed_fps === undefined || fixed_fps > fps)
@@ -132,38 +144,68 @@ class Display {
         applyEventListeners(fps);
         unpaused = true;
         frame_count = 0;
-        // this.adapt_canvas_size()
+        // adapt canvas size
         width = window.innerWidth;
         height = window.innerHeight;
         canvas.width = width;
         canvas.height = height;
+        // reset update flag
         _update_canvas_size = false;
-        // center_world_pos(0,0)
+        // center the camera to 0,0
         set_offset(0 - width * 0.5, 0 - height * 0.5);
         physics_interval_id = setInterval(this.fixed_physics_step.bind(this), fixed_delta_time);
         render_interval_id = requestAnimationFrame(this.render_step.bind(this, 0, 0));
     }
+    /**
+     * This method controls the physics calculation process. It's defined as follows:
+     *
+     * - if the document is hidden or `unpaused` is set to false, skip calculations all together.
+     * - for each particle, before the calculation check wether the particle should be updated.
+     */
     fixed_physics_step() {
         if (document.hidden === false && unpaused) {
             for (let i = 0; i < particles.length; i++)
-                particles[i].step();
+                if (particles[i].should_be_updated() === true)
+                    particles[i].step();
         }
     }
+    /**
+     * Updates the canvas resolution to window.innerWidth, window.innerHeight; after that it centers the camera to the current screen center
+     * which automatically updates bounds, cell_offset and grid.
+     *
+     * This method is triggered by the `_update_canvas_size` flag, changed by the onresize event listener of the window.
+     */
     adapt_canvas_size() {
         width = window.innerWidth;
         height = window.innerHeight;
         canvas.width = width;
         canvas.height = height;
-        _update_canvas_size = false;
-        const new_center_x = (bounds_min_x + bounds_max_x + PARTICLE_WIDTH * scale) * 0.5, new_center_y = (bounds_min_y + bounds_max_y + PARTICLE_WIDTH * scale) * 0.5;
-        //update_bounds();
-        // update_grid();
+        const new_center_x = (bounds_x_min + bounds_x_max + particle_width * scale) * 0.5, new_center_y = (bounds_y_min + bounds_y_max + particle_width * scale) * 0.5;
         set_offset(new_center_x - width * 0.5, new_center_y - height * 0.5);
+        _update_canvas_size = false;
     }
+    /**
+     * This method controls the rendering process. It's defined as follows:
+     *
+     * - update canvas size, if needed.
+     * - calculate delta_time.
+     * - if there is a selected particle, center the camera to its position.
+     * - clear previous frame.
+     * - draw grid.
+     * - draw particles.
+     * - draw current offset in the top left corner.
+     * - draw current fps in the top right corner.
+     * - increment frame_count.
+     * - request next animation frame.
+     */
     render_step(currFrame, prevFrame) {
         if (_update_canvas_size)
             this.adapt_canvas_size();
         delta_time = currFrame - prevFrame;
+        if (selected_particle > -1) {
+            const p_x = particles[selected_particle].x, p_y = particles[selected_particle].y;
+            camera_look_at(p_x, p_y);
+        }
         ctx.clearRect(0, 0, width, height);
         ctx.drawImage(GRID_CACHE, 0, 0);
         for (let i = 0; i < particles.length; i += 10) {
@@ -182,10 +224,6 @@ class Display {
         ctx.fillText(`${offset_x},${offset_y}`, 8, 10);
         ctx.fillStyle = "white";
         ctx.fillText(`${~~(1000 / delta_time)}`, width - 15, 10, 10);
-        if (selected_particle > -1) {
-            // GET CELL POS
-            set_offset(offset_x + particles[selected_particle].x - (bounds_min_x + bounds_max_x + PARTICLE_WIDTH * scale) * 0.5, offset_y + particles[selected_particle].y - (bounds_min_y + bounds_max_y + PARTICLE_WIDTH * scale) * 0.5);
-        }
         frame_count++;
         render_interval_id = requestAnimationFrame(nextFrame => this.render_step.call(this, nextFrame, currFrame));
     }
@@ -203,16 +241,29 @@ scale, inv_scale,
 /** context: mouseEvents. How much can the scale change in a second. */
 scale_delta;
 /** context: mouseEvents. Minimun scale value. */
-const _min_scale = 0.1, 
+const _min_scale = 0.05, 
 /** context: mouseEvents. Maximum scale value. */
-_max_scale = 5, _max_samples_per_frame = 3;
+_max_scale = 10, _max_samples_per_frame = 3;
 let _is_dragging = false, 
 /** The selected particle is identified by its ID. */
-selected_particle = -1, no_mouse_mode = false;
+selected_particle = -1, 
+/** Helps laptop users; if set to true, M1 instead of M3 is used to move around the grid. */
+no_mouse_mode = false;
+/**
+ * This functions applies all the event listeners needed to `canvas`. The added events are:
+ *
+ * - onmousewheel
+ * - onmousedown
+ * - onmousemove
+ * - onmouseup
+ * - onmouseleave
+ *
+ * Resets all the helper variables and flags to their default values; if scale or selected_particle was already defined, do not reset them.
+ */
 function applyEventListeners(fps) {
     _drag_type = -1;
     _previous_mouse_position = null;
-    scale_delta = 30 / fps;
+    scale_delta = 15 / fps;
     _last_sample_frame = -1;
     scale = scale ?? 1;
     inv_scale = 1 / scale;
@@ -225,12 +276,32 @@ function applyEventListeners(fps) {
     canvas.addEventListener("mouseup", mouseup);
     canvas.addEventListener("mouseleave", mouseleave);
 }
+/**
+ * This function will update the `scale` value in the following way:
+ *
+ * - if the scroll wheel was moved forward, then zoom out.
+ * - otherwise, zoom in.
+ *
+ * The scale update rate is capped to the `Display.fps` refresh rate by `_last_sample_frame` which is updated each time
+ * this function is succesfully triggered.
+ */
 function mousewheel(e) {
     if (_last_sample_frame === frame_count)
         return;
     set_scale(scale - Math.sign(e.deltaY) * scale_delta);
     _last_sample_frame = frame_count;
 }
+/**
+ * This function triggers the beginning of a drag event; the type of drag is determined by the button of the mouse that is being pressed.
+ * this type is stored in _drag_type and it can have the following values:
+ *
+ * - -1: none.
+ * - 0: Left mouse button down.
+ * - 1: Scroll wheel button pressed down.
+ * - 2: Right mouse button down.
+ *
+ * Initializes `_previous_mouse_position` for the drag event.
+ */
 function mousedown(e) {
     e.preventDefault();
     switch (e.button) {
@@ -253,6 +324,17 @@ function mousedown(e) {
     }
     _previous_mouse_position = [e.clientX, e.clientY];
 }
+/**
+ * This function handles the following drag events:
+ *
+ * - `_drag_type` is set to 0 and `no_mouse_mode` is set to true: the camera is centered on the mouse.
+ * - `_drag_type` is set to 1 and `no_mouse_mode` is set to false: the camera is centered on the mouse.
+ *
+ * The drag update rate is capped to `_max_samples_per_frame * Display.fps` which by default is 3 times the screen refresh rate; this
+ * is done with `_last_sample_frame` and `_sample_counter` which is incremented each succesful function call.
+ *
+ * Also updates `_previous_mouse_position`.
+ */
 function mousemove(e) {
     if (_drag_type === -1 || _last_sample_frame === frame_count && _sample_counter === _max_samples_per_frame)
         return;
@@ -285,6 +367,9 @@ function mousemove(e) {
     _previous_mouse_position = currentPos;
     _last_sample_frame = frame_count;
 }
+/**
+ * Whenever a mouse button is released, stop any drag events.
+ */
 function mouseup(e) {
     e.preventDefault();
     switch (e.button) {
@@ -306,52 +391,75 @@ function mouseup(e) {
     _sample_counter = 0;
     _previous_mouse_position = null;
 }
+/**
+ * Whenever the mouse leaves the canvas (by extension the window) stop any drag events.
+ */
 function mouseleave(e) {
     _drag_type = -1;
 }
 const X_REGIONS = [], Y_REGIONS = [];
-let particles = [], PARTICLE_WIDTH = 50, INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH, physics_distance_from_offset = (2 * screen.width) ** 2, snap_to_grid = false, 
+let particles = [], particle_width = 50, inv_particle_width = 1 / particle_width, physics_distance_from_offset = (2 * screen.width) ** 2, snap_to_grid = false, 
 /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
-bounds_min_x = 0, 
+bounds_x_min = 0, 
 /** Visibility bounds - any particle with a y value higher than this can be visible vertically. */
-bounds_min_y = 0, 
+bounds_y_min = 0, 
 /** Visibility bounds - any particle with a x smaller than this can be visible horizontally. */
-bounds_max_x = 0, 
+bounds_x_max = 0, 
 /** Visibility bounds - any particle with a y value smaller than this can be visible horizontally. */
-bounds_max_y = 0, cell_offset_x = 0, cell_offset_y = 0;
-/** context: Particle. This is set to the initial value of particle_width. */
-const _particle_resolution = PARTICLE_WIDTH;
-/** Updates the visibility bounds of the canvas for 2D culling. */
+bounds_y_max = 0, cell_offset_x = 0, cell_offset_y = 0;
+/** context: Particle. This is set to the initial value of particle_width, needed for scaling. */
+const PARTICLE_RESOLUTION = particle_width;
+/**
+ * Updates the visibility bounds of the canvas for 2D culling.
+ *
+ * automatically updates bounds_x and bounds_y.
+ */
 function update_bounds() {
-    bounds_min_x = (offset_x - PARTICLE_WIDTH) * scale;
-    bounds_max_x = (width + offset_x) * scale;
-    bounds_min_y = (offset_y - PARTICLE_WIDTH) * scale;
-    bounds_max_y = (height + offset_y) * scale;
+    bounds_x_min = (offset_x - particle_width) * scale;
+    bounds_x_max = (width + offset_x) * scale;
+    bounds_y_min = (offset_y - particle_width) * scale;
+    bounds_y_max = (height + offset_y) * scale;
     physics_distance_from_offset = (2 * screen.width) ** 2 * scale;
 }
+/**
+ * Sets scale to the specified value.
+ *
+ * automatically changes inv_scale and updates bounds, cell_offset and grid.
+ */
 function set_scale(value) {
     scale = Math.max(_min_scale, Math.min(value, _max_scale));
     inv_scale = 1 / scale;
-    PARTICLE_WIDTH = _particle_resolution * inv_scale;
+    particle_width = PARTICLE_RESOLUTION * inv_scale;
     update_bounds();
-    cell_offset_x = PARTICLE_WIDTH - offset_x % PARTICLE_WIDTH;
-    cell_offset_y = PARTICLE_WIDTH - offset_y % PARTICLE_WIDTH;
+    cell_offset_x = particle_width - offset_x % particle_width;
+    cell_offset_y = particle_width - offset_y % particle_width;
     update_grid();
 }
+/**
+ * Sets offset_x and offset_y to the specified values.
+ *
+ * does not automatically invert y_value.
+ *
+ * automatically updates bounds, cell_offset and grid.
+ */
 function set_offset(x_value, y_value) {
     offset_x = x_value;
     offset_y = y_value;
     update_bounds();
-    cell_offset_x = PARTICLE_WIDTH - x_value % PARTICLE_WIDTH;
-    cell_offset_y = PARTICLE_WIDTH - y_value % PARTICLE_WIDTH;
+    cell_offset_x = particle_width - x_value % particle_width;
+    cell_offset_y = particle_width - y_value % particle_width;
     update_grid();
 }
-/** Converts screen (canvas) position to world position. */
-function screen_to_world(clientX, clientY) {
+/**
+ * Converts screen (canvas) position to world position.
+ *
+ * the output y is automatically inverted.
+ */
+function screen_to_world(screen_x, screen_y) {
     const rect = canvas.getBoundingClientRect(), scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
     return [
-        ((clientX - rect.left) * scaleX + offset_x) * scale,
-        ((clientY - rect.top) * scaleY + offset_y) * scale
+        ((screen_x - rect.left) * scaleX + offset_x) * scale,
+        ((screen_y - rect.top) * scaleY + offset_y) * -scale
     ];
 }
 /** Converts screen position (absolute position) to world position. */
@@ -361,32 +469,41 @@ function screen_to_world(clientX, clientY) {
 //         y + offset_y
 //     ]
 // }
-/** Converts world position to screen (canvas) position. */
-function world_to_screen(x, y) {
+/**
+ * Converts world position to screen (canvas) position.
+ *
+ * world_y is automatically inverted.
+ */
+function world_to_screen(world_x, world_y) {
     return [
-        x * inv_scale - offset_x,
-        y * inv_scale - offset_y //height - y + offset_y
+        world_x * inv_scale - offset_x,
+        -world_y * inv_scale - offset_y //height - y + offset_y
     ];
 }
-/** Converts a worlds positions to the cell position it belongs to. */
+/**
+ * Converts a worlds positions to the cell position it belongs to.
+ *
+ * outcome changes if x<0 or y<0.
+ */
 function world_to_screen_cell(x, y) {
     return [
-        x > 0 ? (x - x % PARTICLE_WIDTH) * inv_scale - offset_x : (x - (PARTICLE_WIDTH + x % PARTICLE_WIDTH)) * inv_scale - offset_x,
-        y > 0 ? (y - y % PARTICLE_WIDTH) * inv_scale - offset_y : (y - (PARTICLE_WIDTH + y % PARTICLE_WIDTH)) * inv_scale - offset_y
-        //x < 0 ? x * inv_scale - offset_x - PARTICLE_WIDTH + x % PARTICLE_WIDTH * scale : x * scale - offset_x - x % PARTICLE_WIDTH * scale,
-        //y < 0 ? y * inv_scale - offset_y - PARTICLE_WIDTH + y % PARTICLE_WIDTH * scale : y * scale - offset_y - y % PARTICLE_WIDTH * scale
-        //Math.floor((x - offset_x) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_x,
-        //Math.floor((height - y + offset_y) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_y
+        x > 0 ? (x - x % particle_width) * inv_scale - offset_x : (x - (particle_width + x % particle_width)) * inv_scale - offset_x,
+        y > 0 ? (y - y % particle_width) * inv_scale - offset_y : (y - (particle_width + y % particle_width)) * inv_scale - offset_y
     ];
 }
-function world_to_region(x, y) {
-    return [
-        Math.floor(x * INV_PARTICLE_REGION_SIZE),
-        Math.floor(y * INV_PARTICLE_REGION_SIZE)
-    ];
-}
-function center_world_pos(x, y) {
-    set_offset(x - width * scale * 0.5, y - height * scale * 0.5);
+// function world_to_region(x:number, y:number): [x_region:number, y_region:number] {
+//     return [
+//         Math.floor(x * INV_PARTICLE_REGION_SIZE),
+//         Math.floor(y * INV_PARTICLE_REGION_SIZE)
+//     ]
+// }
+/**
+ * Centers the camera to the specified world position.
+ *
+ * world_y is automatically inverted.
+ */
+function camera_look_at(world_x, world_y) {
+    set_offset(world_x * inv_scale - width * 0.5, (-world_y * inv_scale - height * 0.5));
 }
 class Particle {
     /** Particles x position. */
@@ -403,10 +520,10 @@ class Particle {
     ay;
     /** Particles material.  */
     material;
-    collides_with = [];
-    is_grounded = false;
+    // collides_with:Particle[] = [];
+    // is_grounded = false;
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    region_bounds;
+    // region_bounds: [number,number,number,number]
     constructor(material_type, x, y, vx = 0, vy = 0, ax = 0, ay = 0) {
         this.material = new Material(material_type);
         this.x = x;
@@ -424,8 +541,6 @@ class Particle {
     }
     /** Called during the fixedUpdate, this calculates the new speed and position of the particle. */
     step() {
-        if (this.should_be_updated() === false)
-            return;
         this.vx += this.ax * fixed_delta_time;
         this.vy += this.ay * fixed_delta_time;
         this.x += this.vx * fixed_delta_time;
@@ -437,10 +552,11 @@ class Particle {
     }
     /** Should the particle be rendered? */
     is_visible() {
-        return this.x > bounds_min_x && this.x < bounds_max_x && -this.y > bounds_min_y && -this.y < bounds_max_y;
+        return this.x > bounds_x_min && this.x < bounds_x_max && -this.y > bounds_y_min && -this.y < bounds_y_max;
     }
+    /** Computes the screen position of this particle. If snap_to_grid is set to true, computes the screen_cell position. */
     screen_position() {
-        return snap_to_grid === true ? world_to_screen_cell(this.x, -this.y) : world_to_screen(this.x, -this.y);
+        return snap_to_grid === true ? world_to_screen_cell(this.x, this.y) : world_to_screen(this.x, this.y);
     }
     stop_horizontal_movement() {
         this.ax = 0;
@@ -451,21 +567,19 @@ class Particle {
         this.vy = 0;
     }
 }
-function intersect_xy_regions(x_reg, y_reg) {
-}
-function find_particle(x, y) {
-    let reg = world_to_region(x, y);
-    let x_reg = X_REGIONS[reg[0]];
-    if (x_reg === undefined)
-        return null;
-    let y_reg = Y_REGIONS[reg[1]];
-    if (y_reg === undefined)
-        return null;
-    return null;
-}
-const PARTICLE_REGION_SIZE = PARTICLE_WIDTH * 3, INV_PARTICLE_REGION_SIZE = 1 / PARTICLE_REGION_SIZE;
+// function intersect_xy_regions(x_reg:number[], y_reg:number[]) {
+// }
+// function find_particle(x:number, y:number): null|Particle {
+//     let reg = world_to_region(x,y);
+//     let x_reg = X_REGIONS[reg[0]];
+//     if (x_reg === undefined) return null;
+//     let y_reg = Y_REGIONS[reg[1]];
+//     if (y_reg === undefined) return null;
+//     return null;
+// }
+const PARTICLE_REGION_SIZE = particle_width * 3, INV_PARTICLE_REGION_SIZE = 1 / PARTICLE_REGION_SIZE;
+/** This objects contains all the CanvasImageSources that pre-rendered all the avaiable particle materials. */
 const MATERIAL_CACHE = [];
-;
 class Material {
     static MATERIALS = {
         sand: "#C2B280",
@@ -481,7 +595,7 @@ class Material {
     }
 }
 (function () {
-    const keys = Object.keys(Material.MATERIALS), size = PARTICLE_WIDTH;
+    const keys = Object.keys(Material.MATERIALS), size = particle_width;
     for (let i = 0; i < keys.length; i++) {
         let material = keys[i], canvas = document.createElement("canvas");
         canvas.width = size;
@@ -497,8 +611,8 @@ class Material {
 const GRID_CACHE = document.createElement("canvas"), _grid_ctx = GRID_CACHE.getContext("2d");
 let grid_color = "rgba(255, 255, 255, 0.1)", grid_is_dotted = false;
 function update_grid() {
-    // let gridStart = world_to_screen_cell(offset_x + PARTICLE_WIDTH, offset_y + PARTICLE_WIDTH),
-    //     gridEnd = world_to_screen_cell(offset_x + width + PARTICLE_WIDTH, offset_y + height + PARTICLE_WIDTH);
+    // let gridStart = world_to_screen_cell(offset_x + particle_width, offset_y + particle_width),
+    //     gridEnd = world_to_screen_cell(offset_x + width + particle_width, offset_y + height + particle_width);
     let end_x = width, end_y = height, x_axis, y_axis;
     if (offset_y < 0 && offset_y + height > 0) {
         x_axis = -offset_y;
@@ -512,11 +626,11 @@ function update_grid() {
     _grid_ctx.clearRect(0, 0, width, height);
     _grid_ctx.strokeStyle = grid_color;
     if (grid_is_dotted)
-        _grid_ctx.setLineDash([Math.ceil(2 * PARTICLE_WIDTH / 10), PARTICLE_WIDTH - Math.ceil(2 * PARTICLE_WIDTH / 10)]);
+        _grid_ctx.setLineDash([Math.ceil(2 * particle_width / 10), particle_width - Math.ceil(2 * particle_width / 10)]);
     _grid_ctx.lineWidth = 1;
     _grid_ctx.beginPath();
     // vertical lines
-    for (let x = cell_offset_x - PARTICLE_WIDTH; x < end_x; x += PARTICLE_WIDTH) {
+    for (let x = cell_offset_x - particle_width; x < end_x; x += particle_width) {
         if (x === y_axis)
             continue;
         _grid_ctx.moveTo(x, 0);
@@ -524,7 +638,7 @@ function update_grid() {
         //console.log({ start: [x,0], end: [x, height] });
     }
     // horizontal lines
-    for (let y = cell_offset_y - PARTICLE_WIDTH; y < end_y; y += PARTICLE_WIDTH) {
+    for (let y = cell_offset_y - particle_width; y < end_y; y += particle_width) {
         if (y === x_axis)
             continue;
         _grid_ctx.moveTo(0, y);
@@ -558,14 +672,16 @@ function DEBUG_read_particle(id) {
     };
 }
 function DEBUG_get_bounds() {
-    return { bounds_min_x, bounds_max_x, bounds_min_y, bounds_max_y };
+    return { bounds_x_min, bounds_x_max, bounds_y_min, bounds_y_max };
 }
 const display = new Display("#display", { fixed_fps: 60 });
 particles.push(new Particle(0, 50, 50));
-let angle = 0, distance = 100, w = (2 * Math.PI) / 60;
-setInterval(() => {
-    particles[0].x = Math.cos(angle) * distance;
-    particles[0].y = Math.sin(angle) * distance;
-    angle += w;
-}, 16.66666667);
+// let angle = 0,
+//     distance = 100,
+//     w = (2 * Math.PI) / 60;
+// setInterval(() => {
+//     particles[0].x = Math.cos(angle) * distance;
+//     particles[0].y = Math.sin(angle) * distance;
+//     angle += w;
+// }, 16.66666667)
 //selected_particle = 0;

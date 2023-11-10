@@ -2,20 +2,20 @@ type CanvasSettings = {
     fixed_fps?:number;
 };
 
-    /** Canvas width. Set to window.innerWidth. */
-let width = 0,
-    /** Canvas height. Set to window.innerHeight. */
-    height = 0,
+    /** Canvas width. Constantly updated to window.innerWidth. */
+let width:number,
+    /** Canvas height. Constantly updated to window.innerHeight. */
+    height:number,
     /** Canvas offset x. How far away is the x component from 0. */
-    offset_x = 0,
+    offset_x:number,
     /** Canvas offset y. How far away is the y component from 0. */
-    offset_y = 0,
+    offset_y:number,
     canvas: HTMLCanvasElement,
     ctx:CanvasRenderingContext2D,
     /** If true the canvas will keep updating (image and physics calculations). */
-    unpaused = true,
+    unpaused:boolean,
     /** This flag is set to true whenever the window is resized. On the next render frames the canvas width and height will be updated. */
-    _update_canvas_size = false,
+    _update_canvas_size:boolean,
     /** Time between two physics frames. Measured in milliseconds. Read-only. */
     fixed_delta_time:number,
     /** Time took to render current frame. Measured in milliseconds. Read-only. */
@@ -25,11 +25,12 @@ let width = 0,
     physics_interval_id:number,
     render_interval_id:number;
 
+/** This function, before drawing a particles, asserts that it's not an undefined value and if it's a visible particle. */
 function draw_particle(p:Particle) {
     if (p === undefined || p.is_visible() === false) return;
 
     const pos = p.screen_position();
-    ctx.drawImage(MATERIAL_CACHE[p.material.type], pos[0], pos[1], PARTICLE_WIDTH, PARTICLE_WIDTH);
+    ctx.drawImage(MATERIAL_CACHE[p.material.type], pos[0], pos[1], particle_width, particle_width);
 }
 
 class Display {
@@ -67,7 +68,7 @@ class Display {
     #applySettings({}:CanvasSettings={}) {
 
     }
-    /** Method used to detect screen refresh rate. If refresh rate was already calculated => resolve with that value */
+    /** Method used to detect screen refresh rate. If refresh rate was already, resolve immediately with that value. */
     #init(): Promise<number> {
         return new Promise(resolve => {
 
@@ -115,6 +116,17 @@ class Display {
             id = requestAnimationFrame(frameStep);
         });
     }
+    /**
+     * This method is called before the rendering loop is started. It's defined as follows:
+     * 
+     * - finalize fps.
+     * - if fixed_fps is higher than fps, clamp it down; calculate fixed_delta_time.
+     * - apply event listeners to canvas.
+     * - initialize frame_count.
+     * - set canvas resolution to window.innerWidth, window.innerHeight
+     * - center camera to 0,0.
+     * - begin physics and rendering loop.
+     */
     start(fps:number, fixed_fps:number) {
         Object.defineProperty(this,"fps",{value:fps,writable:false});
         if (fixed_fps === undefined || fixed_fps > fps) fixed_fps = fps;
@@ -125,42 +137,76 @@ class Display {
         unpaused = true;
         frame_count = 0;
 
-        // this.adapt_canvas_size()
+        // adapt canvas size
         width = window.innerWidth;
         height = window.innerHeight;
         canvas.width = width;
         canvas.height = height;
+        // reset update flag
         _update_canvas_size = false;
-        // center_world_pos(0,0)
+        // center the camera to 0,0
         set_offset(0 - width*0.5, 0 - height*0.5)
 
         physics_interval_id = setInterval(this.fixed_physics_step.bind(this), fixed_delta_time);
         render_interval_id = requestAnimationFrame(this.render_step.bind(this,0,0))
     }
+    /**
+     * This method controls the physics calculation process. It's defined as follows:
+     * 
+     * - if the document is hidden or `unpaused` is set to false, skip calculations all together.
+     * - for each particle, before the calculation check wether the particle should be updated.
+     */
     fixed_physics_step() {
         if (document.hidden===false && unpaused) {
             for (let i=0; i<particles.length; i++)
-                particles[i].step();
+                if (particles[i].should_be_updated() === true) 
+                    particles[i].step();
         }
     }
+    /**
+     * Updates the canvas resolution to window.innerWidth, window.innerHeight; after that it centers the camera to the current screen center
+     * which automatically updates bounds, cell_offset and grid. 
+     * 
+     * This method is triggered by the `_update_canvas_size` flag, changed by the onresize event listener of the window.
+     */
     adapt_canvas_size() {
         width = window.innerWidth;
         height = window.innerHeight;
         canvas.width = width;
         canvas.height = height;
-        _update_canvas_size = false;
-        const new_center_x = (bounds_min_x + bounds_max_x + PARTICLE_WIDTH * scale) * 0.5,
-              new_center_y = (bounds_min_y + bounds_max_y + PARTICLE_WIDTH * scale) * 0.5;
 
-        //update_bounds();
-        // update_grid();
-        set_offset(new_center_x - width*0.5, new_center_y - height*0.5)
+        const new_center_x = (bounds_x_min + bounds_x_max + particle_width * scale) * 0.5,
+              new_center_y = (bounds_y_min + bounds_y_max + particle_width * scale) * 0.5;
+        set_offset(new_center_x - width*0.5, new_center_y - height*0.5);
+
+        _update_canvas_size = false;
 
     }
+    /**
+     * This method controls the rendering process. It's defined as follows:
+     * 
+     * - update canvas size, if needed.
+     * - calculate delta_time.
+     * - if there is a selected particle, center the camera to its position.
+     * - clear previous frame.
+     * - draw grid.
+     * - draw particles.
+     * - draw current offset in the top left corner.
+     * - draw current fps in the top right corner.
+     * - increment frame_count.
+     * - request next animation frame.
+     */
     render_step(currFrame?:DOMHighResTimeStamp,prevFrame?:DOMHighResTimeStamp) {
         if (_update_canvas_size) this.adapt_canvas_size();
         
         delta_time = currFrame - prevFrame;
+
+        if (selected_particle > -1) {
+            const p_x = particles[selected_particle].x,
+                  p_y = particles[selected_particle].y;
+            
+            camera_look_at(p_x, p_y)
+        }
 
         ctx.clearRect(0,0,width,height);
         ctx.drawImage(GRID_CACHE, 0, 0);
@@ -180,17 +226,9 @@ class Display {
 
         ctx.fillStyle = "red";
         ctx.fillText(`${offset_x},${offset_y}`,8,10);
+
         ctx.fillStyle = "white";
-
         ctx.fillText(`${~~(1000 / delta_time)}`, width - 15, 10, 10)
-
-        if (selected_particle > -1) {
-            // GET CELL POS
-            set_offset(
-                offset_x + particles[selected_particle].x - (bounds_min_x + bounds_max_x + PARTICLE_WIDTH * scale) * 0.5,
-                offset_y + particles[selected_particle].y - (bounds_min_y + bounds_max_y + PARTICLE_WIDTH * scale) * 0.5
-            );
-        }
 
         frame_count++;
 

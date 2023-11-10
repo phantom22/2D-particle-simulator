@@ -10,5 +10,5 @@ function DEBUG_read_particle(id:number) {
 }
 
 function DEBUG_get_bounds() {
-    return { bounds_min_x, bounds_max_x, bounds_min_y, bounds_max_y }
+    return { bounds_x_min, bounds_x_max, bounds_y_min, bounds_y_max }
 }

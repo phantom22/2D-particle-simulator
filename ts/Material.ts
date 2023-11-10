@@ -1,6 +1,7 @@
 type materialCache = { [type:number]: HTMLCanvasElement };
 
-const MATERIAL_CACHE = [] as materialCache;;
+/** This objects contains all the CanvasImageSources that pre-rendered all the avaiable particle materials. */
+const MATERIAL_CACHE = [] as materialCache;
 
 class Material {
     static MATERIALS = {
@@ -21,7 +22,7 @@ class Material {
 (function(){
 
     const keys = Object.keys(Material.MATERIALS),
-          size = PARTICLE_WIDTH;
+          size = particle_width;
 
     for (let i=0; i<keys.length; i++) {
         let material = keys[i],

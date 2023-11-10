@@ -6,8 +6,8 @@ let grid_color = "rgba(255, 255, 255, 0.1)",
 
 function update_grid() {
 
-    // let gridStart = world_to_screen_cell(offset_x + PARTICLE_WIDTH, offset_y + PARTICLE_WIDTH),
-    //     gridEnd = world_to_screen_cell(offset_x + width + PARTICLE_WIDTH, offset_y + height + PARTICLE_WIDTH);
+    // let gridStart = world_to_screen_cell(offset_x + particle_width, offset_y + particle_width),
+    //     gridEnd = world_to_screen_cell(offset_x + width + particle_width, offset_y + height + particle_width);
 
     let end_x = width,
         end_y = height,
@@ -27,13 +27,13 @@ function update_grid() {
     _grid_ctx.clearRect(0, 0, width, height);
     
     _grid_ctx.strokeStyle = grid_color;
-    if (grid_is_dotted) _grid_ctx.setLineDash([Math.ceil(2*PARTICLE_WIDTH/10), PARTICLE_WIDTH - Math.ceil(2*PARTICLE_WIDTH/10)]);
+    if (grid_is_dotted) _grid_ctx.setLineDash([Math.ceil(2*particle_width/10), particle_width - Math.ceil(2*particle_width/10)]);
     _grid_ctx.lineWidth = 1;
 
     _grid_ctx.beginPath();
 
     // vertical lines
-    for (let x = cell_offset_x - PARTICLE_WIDTH; x<end_x; x += PARTICLE_WIDTH) {
+    for (let x = cell_offset_x - particle_width; x<end_x; x += particle_width) {
         if (x === y_axis) continue;
 
         _grid_ctx.moveTo(x, 0);
@@ -42,7 +42,7 @@ function update_grid() {
     }
 
     // horizontal lines
-    for (let y = cell_offset_y - PARTICLE_WIDTH; y<end_y; y += PARTICLE_WIDTH) {
+    for (let y = cell_offset_y - particle_width; y<end_y; y += particle_width) {
         if (y === x_axis) continue;
 
         _grid_ctx.moveTo(0, y);
