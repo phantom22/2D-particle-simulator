@@ -17,17 +17,19 @@ const _min_scale = 0.1,
       _max_samples_per_frame = 3;
 
 let _is_dragging = false,
-    _selected_particle: Particle;
+    /** The selected particle is identified by its ID. */
+    selected_particle = -1,
+    no_mouse_mode = false;
 
 function applyEventListeners(fps:number) {
     _drag_type = -1;
     _previous_mouse_position = null;
     scale_delta = 30 / fps;
     _last_sample_frame = -1;
-    scale = 1;
-    inv_scale = 1;
+    scale = scale ?? 1;
+    inv_scale = 1 / scale;
     _is_dragging = false;
-    _selected_particle = null,
+    selected_particle = selected_particle ?? -1,
     _sample_counter = 0;
 
     canvas.addEventListener("wheel", mousewheel);
@@ -40,7 +42,7 @@ function applyEventListeners(fps:number) {
 function mousewheel(this:HTMLCanvasElement, e:WheelEvent) {
     if (_last_sample_frame === frame_count) return;
 
-    set_scale(e.deltaY);
+    set_scale(scale - Math.sign(e.deltaY) * scale_delta);
     _last_sample_frame = frame_count;
 }
 
@@ -75,10 +77,11 @@ function mousemove(this:HTMLCanvasElement, e:MouseEvent) {
     switch (_drag_type) {
         // Left button
         case 0:
+            if (no_mouse_mode) set_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
             break;
         // Wheel/Middle button
         case 1:
-            set_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
+            if (!no_mouse_mode) set_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
             break;
         // Right button
         case 2:

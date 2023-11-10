@@ -34,11 +34,11 @@ function draw_particle(p:Particle) {
 
 class Display {
     /** How many frames after the page loads should the fps detector wait? Default=5 */
-    static readonly WAIT_FRAMES = 5;
+    static readonly WAIT_FRAMES = 10;
     /** Number of taken sample timestamps required for the fps detection. Default=10 */
     static readonly FPS_SAMPLES = 10;
     /** Very small number that helps preventing wrong fps detection. Default=0.004973808593749851 */
-    static readonly FPS_CALCULATION_EPSILON = 0.004973808593749851;
+    static readonly FPS_CALCULATION_EPSILON = 0.006;
     /** The refresh rate of the screen. Needs to be calculated only one time. Read-only. */
     static readonly REFRESH_RATE:number;
     /** Is the current device a mobile phone? Needed for performance tweaks. Read-only. */
@@ -117,7 +117,7 @@ class Display {
     }
     start(fps:number, fixed_fps:number) {
         Object.defineProperty(this,"fps",{value:fps,writable:false});
-        fixed_fps = fixed_fps || fps;
+        if (fixed_fps === undefined || fixed_fps > fps) fixed_fps = fps;
         Object.defineProperty(this,"fixed_fps",{value:fixed_fps,writable:false});
         fixed_delta_time = 1000 / fixed_fps;
         applyEventListeners(fps);
@@ -180,6 +180,17 @@ class Display {
 
         ctx.fillStyle = "red";
         ctx.fillText(`${offset_x},${offset_y}`,8,10);
+        ctx.fillStyle = "white";
+
+        ctx.fillText(`${~~(1000 / delta_time)}`, width - 15, 10, 10)
+
+        if (selected_particle > -1) {
+            // GET CELL POS
+            set_offset(
+                offset_x + particles[selected_particle].x - (bounds_min_x + bounds_max_x + PARTICLE_WIDTH * scale) * 0.5,
+                offset_y + particles[selected_particle].y - (bounds_min_y + bounds_max_y + PARTICLE_WIDTH * scale) * 0.5
+            );
+        }
 
         frame_count++;
 

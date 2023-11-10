@@ -30,7 +30,7 @@ function update_bounds() {
 }
 
 function set_scale(value:number) {
-    scale = Math.max(_min_scale, Math.min(scale - Math.sign(value) * scale_delta, _max_scale));
+    scale = Math.max(_min_scale, Math.min(value, _max_scale));
     inv_scale = 1 / scale;
     PARTICLE_WIDTH = _particle_resolution * inv_scale;
     update_bounds();
@@ -55,8 +55,8 @@ function screen_to_world(clientX:number, clientY:number): [x:number, y:number] {
     scaleY = canvas.height / rect.height;
 
   return [
-    (clientX - rect.left) * scaleX + offset_x,
-    (clientY - rect.top) * scaleY + offset_y
+    ((clientX - rect.left) * scaleX + offset_x) * scale,
+    ((clientY - rect.top) * scaleY + offset_y) * scale
   ]
 }
 
@@ -78,13 +78,11 @@ function world_to_screen(x:number, y:number): [x:number, y:number] {
 
 /** Converts a worlds positions to the cell position it belongs to. */
 function world_to_screen_cell(x:number, y:number): [x:number, y:number] {
-    const sign_x = Math.sign(x),
-          sign_y = Math.sign(y);
     return [
-        // x - offset_x + (sign_x - 1) / 2 * PARTICLE_WIDTH - sign_x * (x % PARTICLE_WIDTH),
-        // y - offset_y + (sign_y - 1) / 2 * PARTICLE_WIDTH - sign_y * (y % PARTICLE_WIDTH)
-        x < 0 ? x * scale - offset_x - PARTICLE_WIDTH + x % PARTICLE_WIDTH * scale : x * scale - offset_x - x % PARTICLE_WIDTH * scale,
-        y < 0 ? y * scale - offset_y - PARTICLE_WIDTH + y % PARTICLE_WIDTH * scale : y * scale - offset_y - y % PARTICLE_WIDTH * scale
+        x > 0 ? (x - x % PARTICLE_WIDTH) * inv_scale - offset_x : (x - (PARTICLE_WIDTH + x % PARTICLE_WIDTH)) * inv_scale - offset_x,
+        y > 0 ? (y - y % PARTICLE_WIDTH) * inv_scale - offset_y : (y - (PARTICLE_WIDTH + y % PARTICLE_WIDTH)) * inv_scale - offset_y
+        //x < 0 ? x * inv_scale - offset_x - PARTICLE_WIDTH + x % PARTICLE_WIDTH * scale : x * scale - offset_x - x % PARTICLE_WIDTH * scale,
+        //y < 0 ? y * inv_scale - offset_y - PARTICLE_WIDTH + y % PARTICLE_WIDTH * scale : y * scale - offset_y - y % PARTICLE_WIDTH * scale
         //Math.floor((x - offset_x) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_x,
         //Math.floor((height - y + offset_y) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_y
     ]
@@ -98,7 +96,7 @@ function world_to_region(x:number, y:number): [x_region:number, y_region:number]
 }
 
 function center_world_pos(x:number, y:number) {
-    set_offset(x - width*0.5, y - height*0.5);
+    set_offset(x - width*scale*0.5, y - height*scale*0.5);
 }
 
 class Particle {
