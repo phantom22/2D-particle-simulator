@@ -154,7 +154,7 @@ class Display {
         canvas.width = width;
         canvas.height = height;
         _update_canvas_size = false;
-        const new_center_x = (bounds_min_x + bounds_max_x + PARTICLE_WIDTH) * 0.5, new_center_y = (bounds_min_y + bounds_max_y + PARTICLE_WIDTH) * 0.5;
+        const new_center_x = (bounds_min_x + bounds_max_x + PARTICLE_WIDTH * scale) * 0.5, new_center_y = (bounds_min_y + bounds_max_y + PARTICLE_WIDTH * scale) * 0.5;
         //update_bounds();
         // update_grid();
         set_offset(new_center_x - width * 0.5, new_center_y - height * 0.5);
@@ -192,7 +192,7 @@ _previous_mouse_position,
 /** context: mouseEvents. Needed to reduce lag from the mouse Move event. Indicates last frame in which the event was registered. */
 _last_sample_frame, _sample_counter, 
 /** Current canvas scale. 1 is the default value. */
-scale, 
+scale, inv_scale, 
 /** context: mouseEvents. How much can the scale change in a second. */
 scale_delta;
 /** context: mouseEvents. Minimun scale value. */
@@ -206,6 +206,7 @@ function applyEventListeners(fps) {
     scale_delta = 30 / fps;
     _last_sample_frame = -1;
     scale = 1;
+    inv_scale = 1;
     _is_dragging = false;
     _selected_particle = null,
         _sample_counter = 0;
@@ -297,26 +298,32 @@ function mouseleave(e) {
     _drag_type = -1;
 }
 const X_REGIONS = [], Y_REGIONS = [];
-let particles = [], PARTICLE_WIDTH = 50, INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH;
-let physics_distance_from_offset = (2 * screen.width) ** 2, snap_to_grid = false;
+let particles = [], PARTICLE_WIDTH = 50, INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH, physics_distance_from_offset = (2 * screen.width) ** 2, snap_to_grid = false, 
 /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
-let bounds_min_x = 0, 
+bounds_min_x = 0, 
 /** Visibility bounds - any particle with a y value higher than this can be visible vertically. */
 bounds_min_y = 0, 
 /** Visibility bounds - any particle with a x smaller than this can be visible horizontally. */
 bounds_max_x = 0, 
 /** Visibility bounds - any particle with a y value smaller than this can be visible horizontally. */
 bounds_max_y = 0, cell_offset_x = 0, cell_offset_y = 0;
+/** context: Particle. This is set to the initial value of particle_width. */
+const _particle_resolution = PARTICLE_WIDTH;
 /** Updates the visibility bounds of the canvas for 2D culling. */
 function update_bounds() {
-    bounds_min_x = offset_x - PARTICLE_WIDTH;
-    bounds_max_x = width + offset_x;
-    bounds_min_y = offset_y - PARTICLE_WIDTH;
-    bounds_max_y = height + offset_y;
+    bounds_min_x = (offset_x - PARTICLE_WIDTH) * scale;
+    bounds_max_x = (width + offset_x) * scale;
+    bounds_min_y = (offset_y - PARTICLE_WIDTH) * scale;
+    bounds_max_y = (height + offset_y) * scale;
+    physics_distance_from_offset = (2 * screen.width) ** 2 * scale;
 }
 function set_scale(value) {
     scale = Math.max(_min_scale, Math.min(scale - Math.sign(value) * scale_delta, _max_scale));
+    inv_scale = 1 / scale;
+    PARTICLE_WIDTH = _particle_resolution * inv_scale;
     update_bounds();
+    cell_offset_x = PARTICLE_WIDTH - offset_x % PARTICLE_WIDTH;
+    cell_offset_y = PARTICLE_WIDTH - offset_y % PARTICLE_WIDTH;
     update_grid();
 }
 function set_offset(x_value, y_value) {
@@ -345,8 +352,8 @@ function screen_to_world(clientX, clientY) {
 /** Converts world position to screen (canvas) position. */
 function world_to_screen(x, y) {
     return [
-        x - offset_x,
-        y - offset_y //height - y + offset_y
+        x * inv_scale - offset_x,
+        y * inv_scale - offset_y //height - y + offset_y
     ];
 }
 /** Converts a worlds positions to the cell position it belongs to. */
@@ -355,8 +362,8 @@ function world_to_screen_cell(x, y) {
     return [
         // x - offset_x + (sign_x - 1) / 2 * PARTICLE_WIDTH - sign_x * (x % PARTICLE_WIDTH),
         // y - offset_y + (sign_y - 1) / 2 * PARTICLE_WIDTH - sign_y * (y % PARTICLE_WIDTH)
-        x < 0 ? x - offset_x - PARTICLE_WIDTH + x % PARTICLE_WIDTH : x - offset_x - x % PARTICLE_WIDTH,
-        y < 0 ? y - offset_y - PARTICLE_WIDTH + y % PARTICLE_WIDTH : y - offset_y - y % PARTICLE_WIDTH
+        x < 0 ? x * scale - offset_x - PARTICLE_WIDTH + x % PARTICLE_WIDTH * scale : x * scale - offset_x - x % PARTICLE_WIDTH * scale,
+        y < 0 ? y * scale - offset_y - PARTICLE_WIDTH + y % PARTICLE_WIDTH * scale : y * scale - offset_y - y % PARTICLE_WIDTH * scale
         //Math.floor((x - offset_x) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_x,
         //Math.floor((height - y + offset_y) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_y
     ];
@@ -419,10 +426,10 @@ class Particle {
     }
     /** Should the particle be rendered? */
     is_visible() {
-        return this.x > bounds_min_x && this.x < bounds_max_x && this.y > bounds_min_y && this.y < bounds_max_y;
+        return this.x > bounds_min_x && this.x < bounds_max_x && -this.y > bounds_min_y && -this.y < bounds_max_y;
     }
     screen_position() {
-        return snap_to_grid === true ? world_to_screen_cell(this.x, this.y) : world_to_screen(this.x, this.y);
+        return snap_to_grid === true ? world_to_screen_cell(this.x, -this.y) : world_to_screen(this.x, -this.y);
     }
     stop_horizontal_movement() {
         this.ax = 0;
@@ -477,7 +484,7 @@ class Material {
     Material.TYPE_TO_NAME = (type) => keys[type] || "invalid type";
 })();
 const GRID_CACHE = document.createElement("canvas"), _grid_ctx = GRID_CACHE.getContext("2d");
-let gridColor = "rgba(255, 255, 255, 0.1)";
+let grid_color = "rgba(255, 255, 255, 0.1)", grid_is_dotted = false;
 function update_grid() {
     // let gridStart = world_to_screen_cell(offset_x + PARTICLE_WIDTH, offset_y + PARTICLE_WIDTH),
     //     gridEnd = world_to_screen_cell(offset_x + width + PARTICLE_WIDTH, offset_y + height + PARTICLE_WIDTH);
@@ -492,8 +499,9 @@ function update_grid() {
     GRID_CACHE.width = width;
     GRID_CACHE.height = height;
     _grid_ctx.clearRect(0, 0, width, height);
-    _grid_ctx.strokeStyle = gridColor;
-    //_grid_ctx.setLineDash([1, 9]);
+    _grid_ctx.strokeStyle = grid_color;
+    if (grid_is_dotted)
+        _grid_ctx.setLineDash([Math.ceil(2 * PARTICLE_WIDTH / 10), PARTICLE_WIDTH - Math.ceil(2 * PARTICLE_WIDTH / 10)]);
     _grid_ctx.lineWidth = 1;
     _grid_ctx.beginPath();
     // vertical lines
@@ -513,22 +521,20 @@ function update_grid() {
         //console.log({ start: [0, j], end: [width, j] });
     }
     _grid_ctx.stroke();
+    if (grid_is_dotted)
+        _grid_ctx.setLineDash([width]);
+    _grid_ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    _grid_ctx.lineWidth = 4;
+    _grid_ctx.beginPath();
     if (x_axis !== undefined) {
-        _grid_ctx.strokeStyle = "rgba(255,255,255,0.5)";
-        _grid_ctx.lineWidth = 4;
-        _grid_ctx.beginPath();
         _grid_ctx.moveTo(0, x_axis);
         _grid_ctx.lineTo(width, x_axis);
-        _grid_ctx.stroke();
     }
     if (y_axis !== undefined) {
-        _grid_ctx.strokeStyle = "rgba(255,255,255,0.5)";
-        _grid_ctx.lineWidth = 4;
-        _grid_ctx.beginPath();
         _grid_ctx.moveTo(y_axis, 0);
         _grid_ctx.lineTo(y_axis, height);
-        _grid_ctx.stroke();
     }
+    _grid_ctx.stroke();
 }
 function DEBUG_read_particle(id) {
     if (!particles[id])

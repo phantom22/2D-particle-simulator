@@ -149,8 +149,8 @@ class Display {
         canvas.width = width;
         canvas.height = height;
         _update_canvas_size = false;
-        const new_center_x = (bounds_min_x + bounds_max_x + PARTICLE_WIDTH) * 0.5,
-              new_center_y = (bounds_min_y + bounds_max_y + PARTICLE_WIDTH) * 0.5;
+        const new_center_x = (bounds_min_x + bounds_max_x + PARTICLE_WIDTH * scale) * 0.5,
+              new_center_y = (bounds_min_y + bounds_max_y + PARTICLE_WIDTH * scale) * 0.5;
 
         //update_bounds();
         // update_grid();

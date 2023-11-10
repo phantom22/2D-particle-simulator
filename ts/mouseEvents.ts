@@ -7,6 +7,7 @@ let _drag_type: -1|0|1|2,
     _sample_counter: number,
     /** Current canvas scale. 1 is the default value. */
     scale: number,
+    inv_scale: number,
     /** context: mouseEvents. How much can the scale change in a second. */
     scale_delta: number;
       /** context: mouseEvents. Minimun scale value. */
@@ -24,6 +25,7 @@ function applyEventListeners(fps:number) {
     scale_delta = 30 / fps;
     _last_sample_frame = -1;
     scale = 1;
+    inv_scale = 1;
     _is_dragging = false;
     _selected_particle = null,
     _sample_counter = 0;

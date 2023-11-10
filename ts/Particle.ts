@@ -3,13 +3,11 @@ const X_REGIONS = [] as { [x_region_id:number]: [particle_id:number] },
 
 let particles = [] as Particle[],
     PARTICLE_WIDTH = 50,
-    INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH;
-
-let physics_distance_from_offset = (2 * screen.width) ** 2,
-    snap_to_grid = false;
-
+    INV_PARTICLE_WIDTH = 1 / PARTICLE_WIDTH,
+    physics_distance_from_offset = (2 * screen.width) ** 2,
+    snap_to_grid = false,
     /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
-let bounds_min_x = 0,
+    bounds_min_x = 0,
     /** Visibility bounds - any particle with a y value higher than this can be visible vertically. */
     bounds_min_y = 0,
     /** Visibility bounds - any particle with a x smaller than this can be visible horizontally. */
@@ -19,17 +17,25 @@ let bounds_min_x = 0,
     cell_offset_x = 0,
     cell_offset_y = 0;
 
+/** context: Particle. This is set to the initial value of particle_width. */
+const _particle_resolution = PARTICLE_WIDTH;
+
 /** Updates the visibility bounds of the canvas for 2D culling. */
 function update_bounds() {
-    bounds_min_x = offset_x - PARTICLE_WIDTH;
-    bounds_max_x = width + offset_x;
-    bounds_min_y = offset_y - PARTICLE_WIDTH;
-    bounds_max_y = height + offset_y;
+    bounds_min_x = (offset_x - PARTICLE_WIDTH) * scale;
+    bounds_max_x = (width + offset_x) * scale;
+    bounds_min_y = (offset_y - PARTICLE_WIDTH) * scale;
+    bounds_max_y = (height + offset_y) * scale;
+    physics_distance_from_offset = (2 * screen.width) ** 2 * scale;
 }
 
 function set_scale(value:number) {
     scale = Math.max(_min_scale, Math.min(scale - Math.sign(value) * scale_delta, _max_scale));
+    inv_scale = 1 / scale;
+    PARTICLE_WIDTH = _particle_resolution * inv_scale;
     update_bounds();
+    cell_offset_x = PARTICLE_WIDTH - offset_x % PARTICLE_WIDTH;
+    cell_offset_y = PARTICLE_WIDTH - offset_y % PARTICLE_WIDTH;
     update_grid();
 }
 
@@ -65,8 +71,8 @@ function screen_to_world(clientX:number, clientY:number): [x:number, y:number] {
 /** Converts world position to screen (canvas) position. */
 function world_to_screen(x:number, y:number): [x:number, y:number] {
     return [
-        x - offset_x,
-        y - offset_y//height - y + offset_y
+        x * inv_scale - offset_x,
+        y * inv_scale - offset_y//height - y + offset_y
     ]
 }
 
@@ -77,8 +83,8 @@ function world_to_screen_cell(x:number, y:number): [x:number, y:number] {
     return [
         // x - offset_x + (sign_x - 1) / 2 * PARTICLE_WIDTH - sign_x * (x % PARTICLE_WIDTH),
         // y - offset_y + (sign_y - 1) / 2 * PARTICLE_WIDTH - sign_y * (y % PARTICLE_WIDTH)
-        x < 0 ? x - offset_x - PARTICLE_WIDTH + x % PARTICLE_WIDTH : x - offset_x - x % PARTICLE_WIDTH,
-        y < 0 ? y - offset_y - PARTICLE_WIDTH + y % PARTICLE_WIDTH : y - offset_y - y % PARTICLE_WIDTH
+        x < 0 ? x * scale - offset_x - PARTICLE_WIDTH + x % PARTICLE_WIDTH * scale : x * scale - offset_x - x % PARTICLE_WIDTH * scale,
+        y < 0 ? y * scale - offset_y - PARTICLE_WIDTH + y % PARTICLE_WIDTH * scale : y * scale - offset_y - y % PARTICLE_WIDTH * scale
         //Math.floor((x - offset_x) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_x,
         //Math.floor((height - y + offset_y) * INV_PARTICLE_WIDTH) * PARTICLE_WIDTH + cell_offset_y
     ]
@@ -152,11 +158,11 @@ class Particle {
 
     /** Should the particle be rendered? */
     is_visible() {
-        return this.x > bounds_min_x && this.x < bounds_max_x && this.y > bounds_min_y && this.y < bounds_max_y
+        return this.x > bounds_min_x && this.x < bounds_max_x && -this.y > bounds_min_y && -this.y < bounds_max_y
     }
 
     screen_position(): [x:number, y:number] {
-        return snap_to_grid === true ? world_to_screen_cell(this.x, this.y) : world_to_screen(this.x, this.y)
+        return snap_to_grid === true ? world_to_screen_cell(this.x, -this.y) : world_to_screen(this.x, -this.y)
     }
 
     stop_horizontal_movement() {
