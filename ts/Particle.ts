@@ -32,13 +32,18 @@ function update_bounds() {
     //physics_distance_from_offset = (width ** 2 + height ** 2) * height * 3 / 2;
 }
 
-function set_physics_time_scale(value:number) {
-    physics_time_scale = Math.max(_min_physics_time_scale, Math.min(value, _max_physics_time_scale));
-    scaled_delta_time = fixed_delta_time * physics_time_scale;
+/** 
+ * Updates the time scale of the simulation.. 
+ * 
+ * automatically updates scaled_delta_time.
+ */
+function set_time_scale(value:number) {
+    time_scale = Math.max(_min_time_scale, Math.min(value, _max_time_scale));
+    scaled_delta_time = fixed_delta_time * time_scale;
 }
 
 /**
- * Sets scale to the specified value.
+ * Sets scale to the specified value. The camera keeps looking at the same center as before.
  * 
  * automatically changes inv_scale and updates bounds, cell_offset and grid.
  */
@@ -48,11 +53,6 @@ function set_scale(value:number) {
     scale = Math.max(_min_scale, Math.min(value, _max_scale));
     inv_scale = 1 / scale;
     particle_width = PARTICLE_RESOLUTION * inv_scale;
-
-    //update_bounds();
-    //cell_offset_x = particle_width - offset_x % particle_width;
-    //cell_offset_y = particle_width - offset_y % particle_width;
-    //update_grid();
 
     camera_look_at(center[0], center[1]);
 }

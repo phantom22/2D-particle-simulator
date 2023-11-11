@@ -6,6 +6,9 @@ window.addEventListener("keypress", e => {
         // On spacebar key press, toggle pause.
         case " ":
             unpaused = !unpaused;
+            if (unpaused === true && time_scale === 0) {
+                set_time_scale(1);
+            }
             break;
         default:
             break;
@@ -24,7 +27,7 @@ let _drag_type: -1|0|1|2,
     /** Inverse of the current canvas scale. 1 is the default value. */
     inv_scale:number,
     /** Current physics time scale. 1 is the default value. */
-    physics_time_scale:number,
+    time_scale:number,
     /** context: mouseEvents. How much scolling the wheel will change a value in a second. */
     scroll_wheel_delta:number;
       /** context: mouseEvents. Minimun scale value. */
@@ -32,8 +35,8 @@ const _min_scale = 0.08,
       /** context: mouseEvents. Maximum scale value. */
       _max_scale = 6.25,
       _max_samples_per_frame = 3,
-      _min_physics_time_scale = 0,
-      _max_physics_time_scale = 2;
+      _min_time_scale = 0,
+      _max_time_scale = 2;
 
 let _is_dragging = false,
     /** The selected particle is identified by its ID. */
@@ -59,8 +62,8 @@ function applyEventListeners(fps:number) {
     _last_sample_frame = -1;
     scale = scale ?? 1;
     inv_scale = 1 / scale;
-    physics_time_scale = physics_time_scale ?? 1;
-    scaled_delta_time = fixed_delta_time * physics_time_scale;
+    time_scale = time_scale ?? 1;
+    scaled_delta_time = fixed_delta_time * time_scale;
     _is_dragging = false;
     selected_particle = selected_particle ?? -1,
     _sample_counter = 0;
@@ -73,11 +76,16 @@ function applyEventListeners(fps:number) {
 }
 
 /**
- * This function will update the `scale` value in the following way:
+ * This function will update the `scale` value (if the shift key was not pressed) in the following way:
  * 
- * - if the scroll wheel was moved forward, then zoom out.
- * - otherwise, zoom in.
+ * - if the scroll wheel was moved forward, then zoom-out.
+ * - zoom-in, otherwise.
  * 
+ * If the shift key was pressed, update the `time_scale` value:
+ * 
+  - if the scroll wheel was moved forward, then speed-up the simulation.
+  - slow-down otherwise
+ *
  * The scale update rate is capped to the `Display.fps` refresh rate by `_last_sample_frame` which is updated each time
  * this function is succesfully triggered.
  */
@@ -87,11 +95,11 @@ function mousewheel(this:HTMLCanvasElement, e:WheelEvent) {
     const change = -Math.sign(e.deltaY) * scroll_wheel_delta;
 
     if (e.shiftKey) {
-        set_physics_time_scale(physics_time_scale + change);
-        if (physics_time_scale === 0 && unpaused === true) {
+        set_time_scale(time_scale + change);
+        if (time_scale === 0 && unpaused === true) {
             unpaused = false;
         }
-        else if (physics_time_scale > 0 && unpaused === false) {
+        else if (time_scale > 0 && unpaused === false) {
             unpaused = true;
         }
     }

@@ -18,7 +18,7 @@ let width:number,
     _update_canvas_size:boolean,
     /** Time between two physics frames. Measured in milliseconds. Read-only. */
     fixed_delta_time:number,
-    /** Cached value of fixed_delta_time * physics_time_scale. Measured in milliseconds. Read-only. */
+    /** Cached value of fixed_delta_time * time_scale. Measured in milliseconds. Read-only. */
     scaled_delta_time:number,
     /** Time took to render current frame. Measured in milliseconds. Read-only. */
     delta_time:number,

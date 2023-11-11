@@ -14,4 +14,4 @@ particles.push(new Particle(1, 500, 500, -30/1000, -60/1000, -3/1000000, -6/1000
 //      angle += w;
 //  }, 16.66666667)
 
-selected_particle = 0;
+//selected_particle = 0;
