@@ -427,7 +427,7 @@ _last_sample_frame, _sample_counter,
  * Current rendering scale. Read-only.
  *
  * ---
- * use `set_scale(value)` to change this value.
+ * use `set_scale(value)` to change this value; won't reset if already defined.
  */
 scale, 
 /**
@@ -441,7 +441,7 @@ inv_scale,
  * Current physics time scale. Read-only.
  *
  * ---
- * use `set_time_scale(value)` to change this value.
+ * use `set_time_scale(value)` to change this value; won't reset if already defined.
  */
 time_scale, 
 /**
@@ -462,8 +462,12 @@ _min_time_scale = 0,
 _max_time_scale = 2;
 /** Has the user began a drag event? */
 let _is_dragging = false, 
-/** The selected particle is identified by its ID, which is its position in the `particles` array. */
-selected_particle = -1, 
+/**
+ * The selected particle is identified by its ID, which is its position in the `particles` array.
+ *
+ * won't reset if already defined.
+ */
+selected_particle, 
 /** Helps laptop users; if set to true, M1 instead of M3 is used to move around the grid. */
 no_mouse_mode = false;
 /**
@@ -475,7 +479,7 @@ no_mouse_mode = false;
  * - onmouseup
  * - onmouseleave
  *
- * Resets all the helper variables and flags to their default values; if scale or selected_particle was already defined, do not reset them.
+ * Resets all the helper variables and flags to their default values; if `scale`, `time_scale` or `selected_particle` were already defined do not reset them.
  */
 function applyEventListeners(fps) {
     _drag_type = -1;
@@ -650,7 +654,7 @@ particle_width = 10,
  */
 inv_particle_width = 1 / particle_width, 
 /** Should the particles snap to the grid cells? */
-snap_to_grid = true;
+snap_to_grid = false;
 /** Max distance from the origin for a particle to be emulated physically. */
 //physics_distance_from_offset:number,
 /** This is set to the initial value of particle_width, needed for correct scaling. */

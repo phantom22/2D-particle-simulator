@@ -15,7 +15,7 @@ let particles = [] as Particle[],
      */
     inv_particle_width = 1 / particle_width,
     /** Should the particles snap to the grid cells? */
-    snap_to_grid = true;
+    snap_to_grid = false;
     /** Max distance from the origin for a particle to be emulated physically. */
     //physics_distance_from_offset:number,
 

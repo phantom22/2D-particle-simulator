@@ -41,7 +41,7 @@ function update_bounds() {
 }
 
 /** 
- * Updates the time scale of the simulation.. 
+ * Updates the time scale of the simulation..
  * 
  * automatically updates scaled_delta_time.
  */

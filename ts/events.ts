@@ -32,7 +32,7 @@ let _drag_type: -1|0|1|2,
      * Current rendering scale. Read-only. 
      * 
      * ---
-     * use `set_scale(value)` to change this value.
+     * use `set_scale(value)` to change this value; won't reset if already defined.
      */
     scale:number,
     /** 
@@ -46,7 +46,7 @@ let _drag_type: -1|0|1|2,
      * Current physics time scale. Read-only. 
      * 
      * ---
-     * use `set_time_scale(value)` to change this value.
+     * use `set_time_scale(value)` to change this value; won't reset if already defined.
      */
     time_scale:number,
     /** 
@@ -68,8 +68,12 @@ const _min_scale = 0.08,
 
     /** Has the user began a drag event? */
 let _is_dragging = false,
-    /** The selected particle is identified by its ID, which is its position in the `particles` array. */
-    selected_particle = -1,
+    /** 
+     * The selected particle is identified by its ID, which is its position in the `particles` array. 
+     * 
+     * won't reset if already defined.
+     */
+    selected_particle:number,
     /** Helps laptop users; if set to true, M1 instead of M3 is used to move around the grid. */
     no_mouse_mode = false;
 
@@ -82,7 +86,7 @@ let _is_dragging = false,
  * - onmouseup
  * - onmouseleave
  * 
- * Resets all the helper variables and flags to their default values; if scale or selected_particle was already defined, do not reset them.
+ * Resets all the helper variables and flags to their default values; if `scale`, `time_scale` or `selected_particle` were already defined do not reset them.
  */
 function applyEventListeners(fps:number) {
     _drag_type = -1;
