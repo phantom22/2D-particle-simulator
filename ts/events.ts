@@ -15,20 +15,25 @@ window.addEventListener("keypress", e => {
 /** context: mouseEvents. -1 = none, 0 = drawing, 1 = moving, 2 = removing/inspecting */
 let _drag_type: -1|0|1|2,
     /** context: mouseEvents. Needed for mouse drag functionality. */
-    _previous_mouse_position: [x:number, y:number],
+    _previous_mouse_position:[x:number, y:number],
     /** context: mouseEvents. Needed to reduce lag from the mouse Move event. Indicates last frame in which the event was registered. */
-    _last_sample_frame: number,
-    _sample_counter: number,
+    _last_sample_frame:number,
+    _sample_counter:number,
     /** Current canvas scale. 1 is the default value. */
-    scale: number,
-    inv_scale: number,
-    /** context: mouseEvents. How much can the scale change in a second. */
-    scale_delta: number;
+    scale:number,
+    /** Inverse of the current canvas scale. 1 is the default value. */
+    inv_scale:number,
+    /** Current physics time scale. 1 is the default value. */
+    physics_time_scale:number,
+    /** context: mouseEvents. How much scolling the wheel will change a value in a second. */
+    scroll_wheel_delta:number;
       /** context: mouseEvents. Minimun scale value. */
 const _min_scale = 0.08,
       /** context: mouseEvents. Maximum scale value. */
       _max_scale = 6.25,
-      _max_samples_per_frame = 3;
+      _max_samples_per_frame = 3,
+      _min_physics_time_scale = 0,
+      _max_physics_time_scale = 2;
 
 let _is_dragging = false,
     /** The selected particle is identified by its ID. */
@@ -50,10 +55,12 @@ let _is_dragging = false,
 function applyEventListeners(fps:number) {
     _drag_type = -1;
     _previous_mouse_position = null;
-    scale_delta = 15 / fps;
+    scroll_wheel_delta = 15 / fps;
     _last_sample_frame = -1;
     scale = scale ?? 1;
     inv_scale = 1 / scale;
+    physics_time_scale = physics_time_scale ?? 1;
+    scaled_delta_time = fixed_delta_time * physics_time_scale;
     _is_dragging = false;
     selected_particle = selected_particle ?? -1,
     _sample_counter = 0;
@@ -77,7 +84,20 @@ function applyEventListeners(fps:number) {
 function mousewheel(this:HTMLCanvasElement, e:WheelEvent) {
     if (_last_sample_frame === frame_count) return;
 
-    set_scale(scale - Math.sign(e.deltaY) * scale_delta);
+    const change = -Math.sign(e.deltaY) * scroll_wheel_delta;
+
+    if (e.shiftKey) {
+        set_physics_time_scale(physics_time_scale + change);
+        if (physics_time_scale === 0 && unpaused === true) {
+            unpaused = false;
+        }
+        else if (physics_time_scale > 0 && unpaused === false) {
+            unpaused = true;
+        }
+    }
+    else {
+        set_scale(scale + change);
+    }
     _last_sample_frame = frame_count;
 }
 

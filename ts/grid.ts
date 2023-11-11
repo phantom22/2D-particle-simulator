@@ -2,7 +2,8 @@
 const GRID_CACHE = document.createElement("canvas"),
       _grid_ctx = GRID_CACHE.getContext("2d");
 
-let grid_color = "#0f0f0f";
+let axis_color = "#52190f",
+    grid_color = "#0f0f0f";
 
 /** This function updates the cached grid with a new one. */
 function update_grid() {
@@ -22,30 +23,35 @@ function update_grid() {
     GRID_CACHE.height = height;
     _grid_ctx.clearRect(0, 0, width, height);
     
-    _grid_ctx.strokeStyle = grid_color;
-    _grid_ctx.lineWidth = 1.5;
-    _grid_ctx.beginPath();
+    // prevent very fine grid lines
+    if (particle_width > 7) {
 
-    // vertical lines
-    for (let x = cell_offset_x - particle_width; x<end_x; x += particle_width) {
-        if (x === y_axis) continue;
+        _grid_ctx.strokeStyle = grid_color;
+        _grid_ctx.lineWidth = 1.5;
+        _grid_ctx.beginPath();
 
-        _grid_ctx.moveTo(x, 0);
-        _grid_ctx.lineTo(x, height);
+        // vertical lines
+        for (let x = cell_offset_x - particle_width; x<end_x; x += particle_width) {
+            if (x === y_axis) continue;
+
+            _grid_ctx.moveTo(x, 0);
+            _grid_ctx.lineTo(x, height);
+        }
+
+        // horizontal lines
+        for (let y = cell_offset_y - particle_width; y<end_y; y += particle_width) {
+            if (y === x_axis) continue;
+
+            _grid_ctx.moveTo(0, y);
+            _grid_ctx.lineTo(width, y);
+
+        }
+
+        _grid_ctx.stroke();
+
     }
 
-    // horizontal lines
-    for (let y = cell_offset_y - particle_width; y<end_y; y += particle_width) {
-        if (y === x_axis) continue;
-
-        _grid_ctx.moveTo(0, y);
-        _grid_ctx.lineTo(width, y);
-
-    }
-
-    _grid_ctx.stroke();
-
-    _grid_ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    _grid_ctx.strokeStyle = axis_color;
     _grid_ctx.lineWidth = 4;
     _grid_ctx.beginPath();
 

@@ -3,18 +3,18 @@ let particles = [] as Particle[],
     particle_width = 10,
     inv_particle_width = 1 / particle_width,
     /** Max distance from the origin for a particle to be emulated physically. */
-    physics_distance_from_offset:number,
+    //physics_distance_from_offset:number,
     snap_to_grid = false,
     /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
-    bounds_x_min = 0,
+    bounds_x_min:number,
     /** Visibility bounds - any particle with a y value higher than this can be visible vertically. */
-    bounds_y_min = 0,
+    bounds_y_min:number,
     /** Visibility bounds - any particle with a x smaller than this can be visible horizontally. */
-    bounds_x_max = 0,
+    bounds_x_max:number,
     /** Visibility bounds - any particle with a y value smaller than this can be visible horizontally. */
-    bounds_y_max = 0,
-    cell_offset_x = 0,
-    cell_offset_y = 0;
+    bounds_y_max:number,
+    cell_offset_x:number,
+    cell_offset_y:number;
 
 /** context: Particle. This is set to the initial value of particle_width, needed for scaling. */
 const PARTICLE_RESOLUTION = particle_width;
@@ -29,7 +29,12 @@ function update_bounds() {
     bounds_x_max = (width + offset_x) * scale;
     bounds_y_min = (offset_y - particle_width) * scale;
     bounds_y_max = (height + offset_y) * scale;
-    physics_distance_from_offset = (width ** 2 + height ** 2) * height * 3 / 2;
+    //physics_distance_from_offset = (width ** 2 + height ** 2) * height * 3 / 2;
+}
+
+function set_physics_time_scale(value:number) {
+    physics_time_scale = Math.max(_min_physics_time_scale, Math.min(value, _max_physics_time_scale));
+    scaled_delta_time = fixed_delta_time * physics_time_scale;
 }
 
 /**
@@ -38,13 +43,18 @@ function update_bounds() {
  * automatically changes inv_scale and updates bounds, cell_offset and grid.
  */
 function set_scale(value:number) {
+    const center = screen_to_world(width * 0.5, height * 0.5);
+
     scale = Math.max(_min_scale, Math.min(value, _max_scale));
     inv_scale = 1 / scale;
     particle_width = PARTICLE_RESOLUTION * inv_scale;
-    update_bounds();
-    cell_offset_x = particle_width - offset_x % particle_width;
-    cell_offset_y = particle_width - offset_y % particle_width;
-    update_grid();
+
+    //update_bounds();
+    //cell_offset_x = particle_width - offset_x % particle_width;
+    //cell_offset_y = particle_width - offset_y % particle_width;
+    //update_grid();
+
+    camera_look_at(center[0], center[1]);
 }
 
 /**
@@ -94,7 +104,16 @@ function world_to_screen(world_x:number, world_y:number): [screen_x:number, scre
 /** 
  * Converts a worlds position to the cell position it belongs to. 
  * 
- * outcome changes if x<0 or y<0.
+ * world_y is automatically inverted.
+ * 
+ * how it works:
+ * 
+ * - world_x, this value gets rounded down to the nearest left cell.
+ * - world_y: 
+ * 
+ * > when world_y > 0, invert its value and round up down to the nearest cell above it,
+ * 
+ * > when world_y < 0, invert its vakue and round it down to the nearest cell under it.
  */
 function world_to_screen_cell(world_x:number, world_y:number): [screen_cell_x:number, screen_cell_y:number] {
     let x_pr = world_x < 0 ? -PARTICLE_RESOLUTION : 0,
@@ -114,10 +133,12 @@ function camera_look_at(world_x:number, world_y:number) {
     set_offset(world_x*inv_scale - width*0.5, (-world_y*inv_scale - height*0.5));
 }
 
+/**
+ * Forces the camera to look at the center of the screen.
+ */
 function camera_look_at_screen_center() {
-    const new_center_x = (bounds_x_min + bounds_x_max + PARTICLE_RESOLUTION) * 0.5,
-          new_center_y = (bounds_y_min + bounds_y_max + PARTICLE_RESOLUTION) * 0.5;
-    set_offset(new_center_x - width*0.5, new_center_y - height*0.5);
+    const center = screen_to_world(width * 0.5, height * 0.5);
+    camera_look_at(center[0], center[1]);
 }
 
 
@@ -156,10 +177,10 @@ class Particle {
 
     /** Called during the fixedUpdate, this calculates the new speed and position of the particle. */
     step() {
-        this.vx += this.ax * fixed_delta_time;
-        this.vy += this.ay * fixed_delta_time;
-        this.x += this.vx * fixed_delta_time;
-        this.y += this.vy * fixed_delta_time;
+        this.vx += this.ax * scaled_delta_time;
+        this.vy += this.ay * scaled_delta_time;
+        this.x += this.vx * scaled_delta_time;
+        this.y += this.vy * scaled_delta_time;
     }
 
     /** Should the particle be rendered? */

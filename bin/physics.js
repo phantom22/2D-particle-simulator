@@ -26,6 +26,8 @@ unpaused,
 _update_canvas_size, 
 /** Time between two physics frames. Measured in milliseconds. Read-only. */
 fixed_delta_time, 
+/** Cached value of fixed_delta_time * physics_time_scale. Measured in milliseconds. Read-only. */
+scaled_delta_time, 
 /** Time took to render current frame. Measured in milliseconds. Read-only. */
 delta_time, 
 /** Increments by one each rendered frame. */
@@ -247,13 +249,17 @@ _previous_mouse_position,
 /** context: mouseEvents. Needed to reduce lag from the mouse Move event. Indicates last frame in which the event was registered. */
 _last_sample_frame, _sample_counter, 
 /** Current canvas scale. 1 is the default value. */
-scale, inv_scale, 
-/** context: mouseEvents. How much can the scale change in a second. */
-scale_delta;
+scale, 
+/** Inverse of the current canvas scale. 1 is the default value. */
+inv_scale, 
+/** Current physics time scale. 1 is the default value. */
+physics_time_scale, 
+/** context: mouseEvents. How much scolling the wheel will change a value in a second. */
+scroll_wheel_delta;
 /** context: mouseEvents. Minimun scale value. */
 const _min_scale = 0.08, 
 /** context: mouseEvents. Maximum scale value. */
-_max_scale = 6.25, _max_samples_per_frame = 3;
+_max_scale = 6.25, _max_samples_per_frame = 3, _min_physics_time_scale = 0, _max_physics_time_scale = 2;
 let _is_dragging = false, 
 /** The selected particle is identified by its ID. */
 selected_particle = -1, 
@@ -273,10 +279,12 @@ no_mouse_mode = false;
 function applyEventListeners(fps) {
     _drag_type = -1;
     _previous_mouse_position = null;
-    scale_delta = 15 / fps;
+    scroll_wheel_delta = 15 / fps;
     _last_sample_frame = -1;
     scale = scale ?? 1;
     inv_scale = 1 / scale;
+    physics_time_scale = physics_time_scale ?? 1;
+    scaled_delta_time = fixed_delta_time * physics_time_scale;
     _is_dragging = false;
     selected_particle = selected_particle ?? -1,
         _sample_counter = 0;
@@ -298,7 +306,19 @@ function applyEventListeners(fps) {
 function mousewheel(e) {
     if (_last_sample_frame === frame_count)
         return;
-    set_scale(scale - Math.sign(e.deltaY) * scale_delta);
+    const change = -Math.sign(e.deltaY) * scroll_wheel_delta;
+    if (e.shiftKey) {
+        set_physics_time_scale(physics_time_scale + change);
+        if (physics_time_scale === 0 && unpaused === true) {
+            unpaused = false;
+        }
+        else if (physics_time_scale > 0 && unpaused === false) {
+            unpaused = true;
+        }
+    }
+    else {
+        set_scale(scale + change);
+    }
     _last_sample_frame = frame_count;
 }
 /**
@@ -410,15 +430,16 @@ function mouseleave(e) {
 /** This array contains all the particles to be rendered. */
 let particles = [], particle_width = 10, inv_particle_width = 1 / particle_width, 
 /** Max distance from the origin for a particle to be emulated physically. */
-physics_distance_from_offset, snap_to_grid = false, 
+//physics_distance_from_offset:number,
+snap_to_grid = false, 
 /** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
-bounds_x_min = 0, 
+bounds_x_min, 
 /** Visibility bounds - any particle with a y value higher than this can be visible vertically. */
-bounds_y_min = 0, 
+bounds_y_min, 
 /** Visibility bounds - any particle with a x smaller than this can be visible horizontally. */
-bounds_x_max = 0, 
+bounds_x_max, 
 /** Visibility bounds - any particle with a y value smaller than this can be visible horizontally. */
-bounds_y_max = 0, cell_offset_x = 0, cell_offset_y = 0;
+bounds_y_max, cell_offset_x, cell_offset_y;
 /** context: Particle. This is set to the initial value of particle_width, needed for scaling. */
 const PARTICLE_RESOLUTION = particle_width;
 /**
@@ -431,7 +452,11 @@ function update_bounds() {
     bounds_x_max = (width + offset_x) * scale;
     bounds_y_min = (offset_y - particle_width) * scale;
     bounds_y_max = (height + offset_y) * scale;
-    physics_distance_from_offset = (width ** 2 + height ** 2) * height * 3 / 2;
+    //physics_distance_from_offset = (width ** 2 + height ** 2) * height * 3 / 2;
+}
+function set_physics_time_scale(value) {
+    physics_time_scale = Math.max(_min_physics_time_scale, Math.min(value, _max_physics_time_scale));
+    scaled_delta_time = fixed_delta_time * physics_time_scale;
 }
 /**
  * Sets scale to the specified value.
@@ -439,13 +464,15 @@ function update_bounds() {
  * automatically changes inv_scale and updates bounds, cell_offset and grid.
  */
 function set_scale(value) {
+    const center = screen_to_world(width * 0.5, height * 0.5);
     scale = Math.max(_min_scale, Math.min(value, _max_scale));
     inv_scale = 1 / scale;
     particle_width = PARTICLE_RESOLUTION * inv_scale;
-    update_bounds();
-    cell_offset_x = particle_width - offset_x % particle_width;
-    cell_offset_y = particle_width - offset_y % particle_width;
-    update_grid();
+    //update_bounds();
+    //cell_offset_x = particle_width - offset_x % particle_width;
+    //cell_offset_y = particle_width - offset_y % particle_width;
+    //update_grid();
+    camera_look_at(center[0], center[1]);
 }
 /**
  * Sets offset_x and offset_y to the specified values.
@@ -488,7 +515,16 @@ function world_to_screen(world_x, world_y) {
 /**
  * Converts a worlds position to the cell position it belongs to.
  *
- * outcome changes if x<0 or y<0.
+ * world_y is automatically inverted.
+ *
+ * how it works:
+ *
+ * - world_x, this value gets rounded down to the nearest left cell.
+ * - world_y:
+ *
+ * > when world_y > 0, invert its value and round up down to the nearest cell above it,
+ *
+ * > when world_y < 0, invert its vakue and round it down to the nearest cell under it.
  */
 function world_to_screen_cell(world_x, world_y) {
     let x_pr = world_x < 0 ? -PARTICLE_RESOLUTION : 0, y_pr = world_y > 0 ? -PARTICLE_RESOLUTION : 0;
@@ -505,9 +541,12 @@ function world_to_screen_cell(world_x, world_y) {
 function camera_look_at(world_x, world_y) {
     set_offset(world_x * inv_scale - width * 0.5, (-world_y * inv_scale - height * 0.5));
 }
+/**
+ * Forces the camera to look at the center of the screen.
+ */
 function camera_look_at_screen_center() {
-    const new_center_x = (bounds_x_min + bounds_x_max + PARTICLE_RESOLUTION) * 0.5, new_center_y = (bounds_y_min + bounds_y_max + PARTICLE_RESOLUTION) * 0.5;
-    set_offset(new_center_x - width * 0.5, new_center_y - height * 0.5);
+    const center = screen_to_world(width * 0.5, height * 0.5);
+    camera_look_at(center[0], center[1]);
 }
 console.warn("Particle.should_be_updated() is yet to be implemented!");
 class Particle {
@@ -540,10 +579,10 @@ class Particle {
     }
     /** Called during the fixedUpdate, this calculates the new speed and position of the particle. */
     step() {
-        this.vx += this.ax * fixed_delta_time;
-        this.vy += this.ay * fixed_delta_time;
-        this.x += this.vx * fixed_delta_time;
-        this.y += this.vy * fixed_delta_time;
+        this.vx += this.ax * scaled_delta_time;
+        this.vy += this.ay * scaled_delta_time;
+        this.x += this.vx * scaled_delta_time;
+        this.y += this.vy * scaled_delta_time;
     }
     /** Should the particle be rendered? */
     is_visible() {
@@ -594,7 +633,7 @@ class Material {
 })();
 /** This object contains the pre-rendered CanvasImageSource of the grid to be drawn on screen. */
 const GRID_CACHE = document.createElement("canvas"), _grid_ctx = GRID_CACHE.getContext("2d");
-let grid_color = "#0f0f0f";
+let axis_color = "#52190f", grid_color = "#0f0f0f";
 /** This function updates the cached grid with a new one. */
 function update_grid() {
     let end_x = width, end_y = height, x_axis, y_axis;
@@ -607,25 +646,28 @@ function update_grid() {
     GRID_CACHE.width = width;
     GRID_CACHE.height = height;
     _grid_ctx.clearRect(0, 0, width, height);
-    _grid_ctx.strokeStyle = grid_color;
-    _grid_ctx.lineWidth = 1.5;
-    _grid_ctx.beginPath();
-    // vertical lines
-    for (let x = cell_offset_x - particle_width; x < end_x; x += particle_width) {
-        if (x === y_axis)
-            continue;
-        _grid_ctx.moveTo(x, 0);
-        _grid_ctx.lineTo(x, height);
+    // prevent very fine grid lines
+    if (particle_width > 7) {
+        _grid_ctx.strokeStyle = grid_color;
+        _grid_ctx.lineWidth = 1.5;
+        _grid_ctx.beginPath();
+        // vertical lines
+        for (let x = cell_offset_x - particle_width; x < end_x; x += particle_width) {
+            if (x === y_axis)
+                continue;
+            _grid_ctx.moveTo(x, 0);
+            _grid_ctx.lineTo(x, height);
+        }
+        // horizontal lines
+        for (let y = cell_offset_y - particle_width; y < end_y; y += particle_width) {
+            if (y === x_axis)
+                continue;
+            _grid_ctx.moveTo(0, y);
+            _grid_ctx.lineTo(width, y);
+        }
+        _grid_ctx.stroke();
     }
-    // horizontal lines
-    for (let y = cell_offset_y - particle_width; y < end_y; y += particle_width) {
-        if (y === x_axis)
-            continue;
-        _grid_ctx.moveTo(0, y);
-        _grid_ctx.lineTo(width, y);
-    }
-    _grid_ctx.stroke();
-    _grid_ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    _grid_ctx.strokeStyle = axis_color;
     _grid_ctx.lineWidth = 4;
     _grid_ctx.beginPath();
     if (x_axis !== undefined) {
@@ -652,10 +694,10 @@ function DEBUG_get_bounds() {
     return { bounds_x_min, bounds_x_max, bounds_y_min, bounds_y_max };
 }
 const display = new Display("#display", { fixed_fps: 60 });
-particles.push(new Particle(1, -500, -500, 30 / 1000, 60 / 1000));
-particles.push(new Particle(0, 500, -500, -30 / 1000, 60 / 1000));
-particles.push(new Particle(0, -500, 500, 30 / 1000, -60 / 1000));
-particles.push(new Particle(1, 500, 500, -30 / 1000, -60 / 1000));
+particles.push(new Particle(1, -500, -500, 30 / 1000, 60 / 1000, 3 / 1000000, 6 / 1000000));
+particles.push(new Particle(0, 500, -500, -30 / 1000, 60 / 1000, -3 / 1000000, 6 / 1000000));
+particles.push(new Particle(0, -500, 500, 30 / 1000, -60 / 1000, 3 / 1000000, -6 / 1000000));
+particles.push(new Particle(1, 500, 500, -30 / 1000, -60 / 1000, -3 / 1000000, -6 / 1000000));
 //  let angle = 0,
 //      distance = 100,
 //      w = (2 * Math.PI) / 288;
@@ -664,4 +706,4 @@ particles.push(new Particle(1, 500, 500, -30 / 1000, -60 / 1000));
 //      particles[0].y = Math.sin(angle) * distance;
 //      angle += w;
 //  }, 16.66666667)
-//selected_particle = 0;
+selected_particle = 0;
