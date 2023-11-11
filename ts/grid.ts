@@ -2,7 +2,21 @@
 const GRID_CACHE = document.createElement("canvas"),
       _grid_ctx = GRID_CACHE.getContext("2d");
 
-let axis_color = "#52190f",
+    /**
+     * Cached value of `particle_width - x_offset % particle_width`, needed for `update_grid()`. Read-only. 
+     * 
+     * ---
+     * this value is changed by `set_offset(x,y)`.
+     */
+let cell_offset_x:number,
+    /** 
+     * Cached value of `particle_height - y_offset % particle_width`, needed for `update_grid()`. Read-only. 
+     * 
+     * ---
+     * this value is changed by `set_offset(x,y)`.
+     */
+    cell_offset_y:number,
+    axis_color = "#52190f",
     grid_color = "#0f0f0f";
 
 /** This function updates the cached grid with a new one. */

@@ -6,6 +6,7 @@
     "files": [
         "bst.ts",
         "Display.ts",
+        "transformations.ts",
         "events.ts",
         "Particle.ts",
         "Material.ts",

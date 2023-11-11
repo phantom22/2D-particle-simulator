@@ -2,28 +2,59 @@ type CanvasSettings = {
     fixed_fps?:number;
 };
 
-    /** Canvas width. Constantly updated to window.innerWidth. */
+    /** 
+     * Cached value of `window.innerWidth`, this value reflects `canvas.width`. Read-only.
+     * 
+     * ---
+     * this values is changed by `Display.adapt_canvas_size()`.
+     */
 let width:number,
-    /** Canvas height. Constantly updated to window.innerHeight. */
+    /** 
+     * Cached value of `window.innerHeight`, this value reflects `canvas.height`. Read-only.
+     * 
+     * ---
+     * this values is changed by `Display.adapt_canvas_size()`.
+     */
     height:number,
-    /** Canvas offset x. How far away is the x component from 0. */
+    /** 
+     * How far away is the offset x component from 0. Read-only.
+     * 
+     * ---
+     * use `set_offset(x,y)` to change this value.
+     */
     offset_x:number,
-    /** Canvas offset y. How far away is the y component from 0. */
+    /** 
+     * How far away is the offset y component from 0. Read-only.
+     * 
+     * ---
+     * use `set_offset(x,y)` to change this value.
+     */
     offset_y:number,
     canvas: HTMLCanvasElement,
     ctx:CanvasRenderingContext2D,
-    /** If true the canvas will keep updating (image and physics calculations). */
+    /** 
+     * If true the canvas will keep updating (image and physics calculations).
+     * 
+     * ---
+     * won't reset if already defined.
+     */
     unpaused:boolean,
-    /** This flag is set to true whenever the window is resized. On the next render frames the canvas width and height will be updated. */
+    /** This flag is set to true whenever the window is resized. On the next render frames the canvas width and height will be updated. Read-only. */
     _update_canvas_size:boolean,
     /** Time between two physics frames. Measured in milliseconds. Read-only. */
     fixed_delta_time:number,
-    /** Cached value of fixed_delta_time * time_scale. Measured in milliseconds. Read-only. */
+    /** 
+     * Cached value of `fixed_delta_time * time_scale`. Measured in milliseconds. Read-only.
+     * 
+     * ---
+     * this value is changed by `set_time_scale(value)`.
+     */
     scaled_delta_time:number,
-    /** Time took to render current frame. Measured in milliseconds. Read-only. */
+    /** Time took to render previous frame. Measured in milliseconds. Read-only. */
     delta_time:number,
-    /** Increments by one each rendered frame. */
+    /** Increments by one at the end of each rendered frame. */
     frame_count:number,
+    
     physics_interval_id:number,
     render_interval_id:number;
 
@@ -136,7 +167,7 @@ class Display {
         fixed_delta_time = 1000 / fixed_fps;
         applyEventListeners(fps);
 
-        unpaused = true;
+        unpaused = unpaused ?? true;
         frame_count = 0;
 
         // adapt canvas size

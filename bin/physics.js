@@ -1,36 +1,67 @@
-function binarySearch(a, x) {
-    let l = 0, h = a.length;
-    while (l !== h) {
-        const m = ~~((l + h) / 2);
-        if (x === a[m]) {
-            return m;
-        }
-        else if (x > a[m])
-            l = m + 1;
-        else
-            h = m;
-    }
-    return -1;
-}
-/** Canvas width. Constantly updated to window.innerWidth. */
+// function binarySearch(a:number[], x:number) {
+//     let l = 0,
+//         h = a.length;
+//     while (l!==h) {
+//         const m = ~~((l+h)/2);
+//         if (x === a[m]) {
+//             return m;
+//         }
+//         else if (x > a[m])
+//             l = m + 1;
+//         else 
+//             h = m ;
+//     }
+//     return -1;
+// }
+/**
+ * Cached value of `window.innerWidth`, this value reflects `canvas.width`. Read-only.
+ *
+ * ---
+ * this values is changed by `Display.adapt_canvas_size()`.
+ */
 let width, 
-/** Canvas height. Constantly updated to window.innerHeight. */
+/**
+ * Cached value of `window.innerHeight`, this value reflects `canvas.height`. Read-only.
+ *
+ * ---
+ * this values is changed by `Display.adapt_canvas_size()`.
+ */
 height, 
-/** Canvas offset x. How far away is the x component from 0. */
+/**
+ * How far away is the offset x component from 0. Read-only.
+ *
+ * ---
+ * use `set_offset(x,y)` to change this value.
+ */
 offset_x, 
-/** Canvas offset y. How far away is the y component from 0. */
+/**
+ * How far away is the offset y component from 0. Read-only.
+ *
+ * ---
+ * use `set_offset(x,y)` to change this value.
+ */
 offset_y, canvas, ctx, 
-/** If true the canvas will keep updating (image and physics calculations). */
+/**
+ * If true the canvas will keep updating (image and physics calculations).
+ *
+ * ---
+ * won't reset if already defined.
+ */
 unpaused, 
-/** This flag is set to true whenever the window is resized. On the next render frames the canvas width and height will be updated. */
+/** This flag is set to true whenever the window is resized. On the next render frames the canvas width and height will be updated. Read-only. */
 _update_canvas_size, 
 /** Time between two physics frames. Measured in milliseconds. Read-only. */
 fixed_delta_time, 
-/** Cached value of fixed_delta_time * time_scale. Measured in milliseconds. Read-only. */
+/**
+ * Cached value of `fixed_delta_time * time_scale`. Measured in milliseconds. Read-only.
+ *
+ * ---
+ * this value is changed by `set_time_scale(value)`.
+ */
 scaled_delta_time, 
-/** Time took to render current frame. Measured in milliseconds. Read-only. */
+/** Time took to render previous frame. Measured in milliseconds. Read-only. */
 delta_time, 
-/** Increments by one each rendered frame. */
+/** Increments by one at the end of each rendered frame. */
 frame_count, physics_interval_id, render_interval_id;
 /** This function, before drawing a particles, asserts that it's not an undefined value and if it's a visible particle. */
 function draw_particle(p) {
@@ -144,7 +175,7 @@ class Display {
         Object.defineProperty(this, "fixed_fps", { value: fixed_fps, writable: false });
         fixed_delta_time = 1000 / fixed_fps;
         applyEventListeners(fps);
-        unpaused = true;
+        unpaused = unpaused ?? true;
         frame_count = 0;
         // adapt canvas size
         width = window.innerWidth;
@@ -230,6 +261,141 @@ class Display {
     }
 }
 Object.defineProperty(Display, "IS_RUN_ON_PHONE", { writable: false });
+/**
+ * Any particle with a x value higher than this can be visible horizontally. Read-only.
+ *
+ * ---
+ * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_offset(x,y)`.
+ */
+let bounds_x_min, 
+/**
+ * Any particle with a y value higher than this can be visible vertically. Read-only.
+ *
+ * ---
+ * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_offset(x,y)`.
+ */
+bounds_y_min, 
+/**
+ * Any particle with a x smaller than this can be visible horizontally.
+ *
+ * ---
+ * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_offset(x,y)`.
+ */
+bounds_x_max, 
+/**
+ * Visibility bounds - any particle with a y value smaller than this can be visible horizontally.
+ *
+ * ---
+ * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_offset(x,y)`.
+ */
+bounds_y_max;
+/**
+ * Updates the visibility bounds of the canvas for 2D culling.
+ *
+ * automatically updates bounds_x and bounds_y.
+ */
+function update_bounds() {
+    bounds_x_min = (offset_x - particle_width) * scale;
+    bounds_x_max = (width + offset_x) * scale;
+    bounds_y_min = (offset_y - particle_width) * scale;
+    bounds_y_max = (height + offset_y) * scale;
+    //physics_distance_from_offset = (width ** 2 + height ** 2) * height * 3 / 2;
+}
+/**
+ * Updates the time scale of the simulation..
+ *
+ * automatically updates scaled_delta_time.
+ */
+function set_time_scale(value) {
+    time_scale = Math.max(_min_time_scale, Math.min(value, _max_time_scale));
+    scaled_delta_time = fixed_delta_time * time_scale;
+}
+/**
+ * Sets scale to the specified value. The camera keeps looking at the same center as before.
+ *
+ * automatically changes inv_scale and updates bounds, cell_offset and grid.
+ */
+function set_scale(value) {
+    const center = screen_to_world(width * 0.5, height * 0.5);
+    scale = Math.max(_min_scale, Math.min(value, _max_scale));
+    inv_scale = 1 / scale;
+    particle_width = PARTICLE_RESOLUTION * inv_scale;
+    camera_look_at(center[0], center[1]);
+}
+/**
+ * Sets offset_x and offset_y to the specified values.
+ *
+ * does not automatically invert y_value.
+ *
+ * automatically updates bounds, cell_offset and grid.
+ */
+function set_offset(x_value, y_value) {
+    offset_x = x_value;
+    offset_y = y_value;
+    update_bounds();
+    cell_offset_x = particle_width - x_value % particle_width;
+    cell_offset_y = particle_width - y_value % particle_width;
+    update_grid();
+}
+/**
+ * Converts screen (canvas) position to world position.
+ *
+ * the output y is automatically inverted.
+ */
+function screen_to_world(screen_x, screen_y) {
+    const rect = canvas.getBoundingClientRect(), scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+    return [
+        ((screen_x - rect.left) * scaleX + offset_x) * scale,
+        ((screen_y - rect.top) * scaleY + offset_y) * -scale
+    ];
+}
+/**
+ * Converts world position to screen (canvas) position.
+ *
+ * world_y is automatically inverted.
+ */
+function world_to_screen(world_x, world_y) {
+    return [
+        world_x * inv_scale - offset_x,
+        -world_y * inv_scale - offset_y
+    ];
+}
+/**
+ * Converts a worlds position to the cell position it belongs to.
+ *
+ * world_y is automatically inverted.
+ *
+ * how it works:
+ *
+ * - world_x, this value gets rounded down to the nearest left cell.
+ * - world_y:
+ *
+ * > when world_y > 0, invert its value and round up down to the nearest cell above it,
+ *
+ * > when world_y < 0, invert its vakue and round it down to the nearest cell under it.
+ */
+function world_to_screen_cell(world_x, world_y) {
+    let x_pr = world_x < 0 ? -PARTICLE_RESOLUTION : 0, y_pr = world_y > 0 ? -PARTICLE_RESOLUTION : 0;
+    return [
+        (world_x - world_x % PARTICLE_RESOLUTION + x_pr) * inv_scale - offset_x,
+        (world_y % PARTICLE_RESOLUTION - world_y + y_pr) * inv_scale - offset_y
+    ];
+}
+/**
+ * Centers the camera to the specified world position.
+ *
+ * world_y is automatically inverted.
+ */
+function camera_look_at(world_x, world_y) {
+    set_offset(world_x * inv_scale - width * 0.5, (-world_y * inv_scale - height * 0.5));
+}
+/**
+ * Forces the camera to look at the center of the screen.
+ */
+function camera_look_at_screen_center() {
+    const center = screen_to_world(width * 0.5, height * 0.5);
+    camera_look_at(center[0], center[1]);
+}
 // On window resize, trigger adapting canvas resolution.
 window.addEventListener("resize", _ => _update_canvas_size = true);
 window.addEventListener("keypress", e => {
@@ -245,26 +411,58 @@ window.addEventListener("keypress", e => {
             break;
     }
 });
-/** context: mouseEvents. -1 = none, 0 = drawing, 1 = moving, 2 = removing/inspecting */
+/** What type of mousemove event is happening right now?
+ *
+ * - -1 = none
+ * - 0 = TBD
+ * - 1 = moving
+ * - 2 = TBD */
+// 0 = drawing, 2 = removing/inspecting
 let _drag_type, 
-/** context: mouseEvents. Needed for mouse drag functionality. */
+/** Needed for mouse drag functionality. */
 _previous_mouse_position, 
-/** context: mouseEvents. Needed to reduce lag from the mouse Move event. Indicates last frame in which the event was registered. */
+/** Needed to reduce lag from the mouse Move event. Indicates last frame in which the event was registered. */
 _last_sample_frame, _sample_counter, 
-/** Current canvas scale. 1 is the default value. */
+/**
+ * Current rendering scale. Read-only.
+ *
+ * ---
+ * use `set_scale(value)` to change this value.
+ */
 scale, 
-/** Inverse of the current canvas scale. 1 is the default value. */
+/**
+ * Inverse of the current canvas scale value. Read-only.
+ *
+ * ---
+ * this value is changed by `set_scale(value)`.
+ */
 inv_scale, 
-/** Current physics time scale. 1 is the default value. */
+/**
+ * Current physics time scale. Read-only.
+ *
+ * ---
+ * use `set_time_scale(value)` to change this value.
+ */
 time_scale, 
-/** context: mouseEvents. How much scolling the wheel will change a value in a second. */
+/**
+ * How much scolling the wheel will change a value in a second. Read-only.
+ *
+ * the value depends on the detected frame rate.
+ */
 scroll_wheel_delta;
-/** context: mouseEvents. Minimun scale value. */
+/** Minimun `scale` value. */
 const _min_scale = 0.08, 
-/** context: mouseEvents. Maximum scale value. */
-_max_scale = 6.25, _max_samples_per_frame = 3, _min_time_scale = 0, _max_time_scale = 2;
+/** Maximum `scale` value. */
+_max_scale = 6.25, 
+/** Maximum number of mousemove events processed per frame. */
+_max_samples_per_frame = 3, 
+/** Minimum `time_scale` value. */
+_min_time_scale = 0, 
+/** Minimum `time_scale` value. */
+_max_time_scale = 2;
+/** Has the user began a drag event? */
 let _is_dragging = false, 
-/** The selected particle is identified by its ID. */
+/** The selected particle is identified by its ID, which is its position in the `particles` array. */
 selected_particle = -1, 
 /** Helps laptop users; if set to true, M1 instead of M3 is used to move around the grid. */
 no_mouse_mode = false;
@@ -436,127 +634,27 @@ function mouseleave(e) {
     _drag_type = -1;
 }
 /** This array contains all the particles to be rendered. */
-let particles = [], particle_width = 10, inv_particle_width = 1 / particle_width, 
+let particles = [], 
+/**
+ * Current particle width with respect to scale. Read-only.
+ *
+ * ---
+ * this value is changed by `set_scale(value)`.
+ */
+particle_width = 10, 
+/**
+ * Inverse of the current particle_width value. Read-only.
+ *
+ * ---
+ * this value is changed by `set_scale(value)`.
+ */
+inv_particle_width = 1 / particle_width, 
+/** Should the particles snap to the grid cells? */
+snap_to_grid = true;
 /** Max distance from the origin for a particle to be emulated physically. */
 //physics_distance_from_offset:number,
-snap_to_grid = false, 
-/** Visibility bounds - any particle with a x value higher than this can be visible horizontally. */
-bounds_x_min, 
-/** Visibility bounds - any particle with a y value higher than this can be visible vertically. */
-bounds_y_min, 
-/** Visibility bounds - any particle with a x smaller than this can be visible horizontally. */
-bounds_x_max, 
-/** Visibility bounds - any particle with a y value smaller than this can be visible horizontally. */
-bounds_y_max, cell_offset_x, cell_offset_y;
-/** context: Particle. This is set to the initial value of particle_width, needed for scaling. */
+/** This is set to the initial value of particle_width, needed for correct scaling. */
 const PARTICLE_RESOLUTION = particle_width;
-/**
- * Updates the visibility bounds of the canvas for 2D culling.
- *
- * automatically updates bounds_x and bounds_y.
- */
-function update_bounds() {
-    bounds_x_min = (offset_x - particle_width) * scale;
-    bounds_x_max = (width + offset_x) * scale;
-    bounds_y_min = (offset_y - particle_width) * scale;
-    bounds_y_max = (height + offset_y) * scale;
-    //physics_distance_from_offset = (width ** 2 + height ** 2) * height * 3 / 2;
-}
-/**
- * Updates the time scale of the simulation..
- *
- * automatically updates scaled_delta_time.
- */
-function set_time_scale(value) {
-    time_scale = Math.max(_min_time_scale, Math.min(value, _max_time_scale));
-    scaled_delta_time = fixed_delta_time * time_scale;
-}
-/**
- * Sets scale to the specified value. The camera keeps looking at the same center as before.
- *
- * automatically changes inv_scale and updates bounds, cell_offset and grid.
- */
-function set_scale(value) {
-    const center = screen_to_world(width * 0.5, height * 0.5);
-    scale = Math.max(_min_scale, Math.min(value, _max_scale));
-    inv_scale = 1 / scale;
-    particle_width = PARTICLE_RESOLUTION * inv_scale;
-    camera_look_at(center[0], center[1]);
-}
-/**
- * Sets offset_x and offset_y to the specified values.
- *
- * does not automatically invert y_value.
- *
- * automatically updates bounds, cell_offset and grid.
- */
-function set_offset(x_value, y_value) {
-    offset_x = x_value;
-    offset_y = y_value;
-    update_bounds();
-    cell_offset_x = particle_width - x_value % particle_width;
-    cell_offset_y = particle_width - y_value % particle_width;
-    update_grid();
-}
-/**
- * Converts screen (canvas) position to world position.
- *
- * the output y is automatically inverted.
- */
-function screen_to_world(screen_x, screen_y) {
-    const rect = canvas.getBoundingClientRect(), scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
-    return [
-        ((screen_x - rect.left) * scaleX + offset_x) * scale,
-        ((screen_y - rect.top) * scaleY + offset_y) * -scale
-    ];
-}
-/**
- * Converts world position to screen (canvas) position.
- *
- * world_y is automatically inverted.
- */
-function world_to_screen(world_x, world_y) {
-    return [
-        world_x * inv_scale - offset_x,
-        -world_y * inv_scale - offset_y
-    ];
-}
-/**
- * Converts a worlds position to the cell position it belongs to.
- *
- * world_y is automatically inverted.
- *
- * how it works:
- *
- * - world_x, this value gets rounded down to the nearest left cell.
- * - world_y:
- *
- * > when world_y > 0, invert its value and round up down to the nearest cell above it,
- *
- * > when world_y < 0, invert its vakue and round it down to the nearest cell under it.
- */
-function world_to_screen_cell(world_x, world_y) {
-    let x_pr = world_x < 0 ? -PARTICLE_RESOLUTION : 0, y_pr = world_y > 0 ? -PARTICLE_RESOLUTION : 0;
-    return [
-        (world_x - world_x % PARTICLE_RESOLUTION + x_pr) * inv_scale - offset_x,
-        (world_y % PARTICLE_RESOLUTION - world_y + y_pr) * inv_scale - offset_y
-    ];
-}
-/**
- * Centers the camera to the specified world position.
- *
- * world_y is automatically inverted.
- */
-function camera_look_at(world_x, world_y) {
-    set_offset(world_x * inv_scale - width * 0.5, (-world_y * inv_scale - height * 0.5));
-}
-/**
- * Forces the camera to look at the center of the screen.
- */
-function camera_look_at_screen_center() {
-    const center = screen_to_world(width * 0.5, height * 0.5);
-    camera_look_at(center[0], center[1]);
-}
 console.warn("Particle.should_be_updated() is yet to be implemented!");
 class Particle {
     /** Particles x position. */
@@ -642,7 +740,20 @@ class Material {
 })();
 /** This object contains the pre-rendered CanvasImageSource of the grid to be drawn on screen. */
 const GRID_CACHE = document.createElement("canvas"), _grid_ctx = GRID_CACHE.getContext("2d");
-let axis_color = "#52190f", grid_color = "#0f0f0f";
+/**
+ * Cached value of `particle_width - x_offset % particle_width`, needed for `update_grid()`. Read-only.
+ *
+ * ---
+ * this value is changed by `set_offset(x,y)`.
+ */
+let cell_offset_x, 
+/**
+ * Cached value of `particle_height - y_offset % particle_width`, needed for `update_grid()`. Read-only.
+ *
+ * ---
+ * this value is changed by `set_offset(x,y)`.
+ */
+cell_offset_y, axis_color = "#52190f", grid_color = "#0f0f0f";
 /** This function updates the cached grid with a new one. */
 function update_grid() {
     let end_x = width, end_y = height, x_axis, y_axis;
@@ -689,19 +800,6 @@ function update_grid() {
     }
     _grid_ctx.stroke();
 }
-function DEBUG_read_particle(id) {
-    if (!particles[id])
-        throw `${id} is not a valid particle id!`;
-    let { x, y, vx, vy, ax, ay } = particles[id];
-    return {
-        x, y,
-        vx: vx * 1000, vy: vy * 1000,
-        ax: ax * 1000000, ay: ay * 1000000
-    };
-}
-function DEBUG_get_bounds() {
-    return { bounds_x_min, bounds_x_max, bounds_y_min, bounds_y_max };
-}
 const display = new Display("#display", { fixed_fps: 60 });
 particles.push(new Particle(1, -500, -500, 30 / 1000, 60 / 1000, 3 / 1000000, 6 / 1000000));
 particles.push(new Particle(0, 500, -500, -30 / 1000, 60 / 1000, -3 / 1000000, 6 / 1000000));
@@ -716,3 +814,4 @@ particles.push(new Particle(1, 500, 500, -30 / 1000, -60 / 1000, -3 / 1000000, -
 //      angle += w;
 //  }, 16.66666667)
 //selected_particle = 0;
+//unpaused = false;

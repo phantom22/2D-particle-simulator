@@ -19,7 +19,7 @@ class Material {
     }
 }
 
-(function(){
+(function() {
 
     const keys = Object.keys(Material.MATERIALS),
           size = particle_width;

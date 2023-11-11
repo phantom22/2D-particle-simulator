@@ -15,31 +15,60 @@ window.addEventListener("keypress", e => {
     }
 });
 
-/** context: mouseEvents. -1 = none, 0 = drawing, 1 = moving, 2 = removing/inspecting */
+/** What type of mousemove event is happening right now?
+ * 
+ * - -1 = none
+ * - 0 = TBD
+ * - 1 = moving
+ * - 2 = TBD */ 
+// 0 = drawing, 2 = removing/inspecting
 let _drag_type: -1|0|1|2,
-    /** context: mouseEvents. Needed for mouse drag functionality. */
+    /** Needed for mouse drag functionality. */
     _previous_mouse_position:[x:number, y:number],
-    /** context: mouseEvents. Needed to reduce lag from the mouse Move event. Indicates last frame in which the event was registered. */
+    /** Needed to reduce lag from the mouse Move event. Indicates last frame in which the event was registered. */
     _last_sample_frame:number,
     _sample_counter:number,
-    /** Current canvas scale. 1 is the default value. */
+    /** 
+     * Current rendering scale. Read-only. 
+     * 
+     * ---
+     * use `set_scale(value)` to change this value.
+     */
     scale:number,
-    /** Inverse of the current canvas scale. 1 is the default value. */
+    /** 
+     * Inverse of the current canvas scale value. Read-only.
+     *
+     * ---
+     * this value is changed by `set_scale(value)`.
+     */
     inv_scale:number,
-    /** Current physics time scale. 1 is the default value. */
+    /** 
+     * Current physics time scale. Read-only. 
+     * 
+     * ---
+     * use `set_time_scale(value)` to change this value.
+     */
     time_scale:number,
-    /** context: mouseEvents. How much scolling the wheel will change a value in a second. */
+    /** 
+     * How much scolling the wheel will change a value in a second. Read-only.
+     * 
+     * the value depends on the detected frame rate.
+     */
     scroll_wheel_delta:number;
-      /** context: mouseEvents. Minimun scale value. */
+      /** Minimun `scale` value. */
 const _min_scale = 0.08,
-      /** context: mouseEvents. Maximum scale value. */
+      /** Maximum `scale` value. */
       _max_scale = 6.25,
+      /** Maximum number of mousemove events processed per frame. */
       _max_samples_per_frame = 3,
+      /** Minimum `time_scale` value. */
       _min_time_scale = 0,
+      /** Minimum `time_scale` value. */
       _max_time_scale = 2;
 
+    /** Has the user began a drag event? */
 let _is_dragging = false,
-    /** The selected particle is identified by its ID. */
+    /** The selected particle is identified by its ID, which is its position in the `particles` array. */
     selected_particle = -1,
     /** Helps laptop users; if set to true, M1 instead of M3 is used to move around the grid. */
     no_mouse_mode = false;
