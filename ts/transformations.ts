@@ -138,7 +138,7 @@ function world_to_screen_cell(world_x:number, world_y:number): [screen_cell_x:nu
  * world_y is automatically inverted.
  */
 function camera_look_at(world_x:number, world_y:number) {
-    set_offset(world_x*inv_scale - width*0.5, (-world_y*inv_scale - height*0.5));
+    set_offset(world_x*inv_scale - width*0.5, -world_y*inv_scale - height*0.5);
 }
 
 /**
@@ -147,4 +147,20 @@ function camera_look_at(world_x:number, world_y:number) {
 function camera_look_at_screen_center() {
     const center = screen_to_world(width * 0.5, height * 0.5);
     camera_look_at(center[0], center[1]);
+}
+
+/**
+ * Given a world position, pad it to be in the middle of a cell then center the camera around it.
+ * 
+ * if `snap_to_grid` is false, simply point the camera half a cell to the right and half a cell to the bottom of the given position, thus center the camera to a cell which is not snapped to the grid.
+ */
+function camera_look_at_centerered_cell(world_x:number, world_y:number) {
+    if (snap_to_grid) {
+        let x_pr = world_x < 0 ? -PARTICLE_RESOLUTION*0.5 : PARTICLE_RESOLUTION*0.5,
+            y_pr = world_y > 0 ? -PARTICLE_RESOLUTION*0.5 : -PARTICLE_RESOLUTION*0.5;
+
+        return camera_look_at(world_x - world_x % PARTICLE_RESOLUTION + x_pr, world_y - world_y % PARTICLE_RESOLUTION - y_pr);
+    }
+
+    return camera_look_at(world_x + PARTICLE_RESOLUTION*0.5, world_y - PARTICLE_RESOLUTION*0.5);
 }

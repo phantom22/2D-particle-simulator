@@ -63,6 +63,8 @@ scaled_delta_time,
 delta_time, 
 /** Increments by one at the end of each rendered frame. */
 frame_count, physics_interval_id, render_interval_id;
+const UI_FONT = "Verdana";
+let ui_font_size = 15, ui_padding = 5, ui_margin = 15, ui_offset_color = "red", ui_fps_color = "white";
 /** This function, before drawing a particles, asserts that it's not an undefined value and if it's a visible particle. */
 function draw_particle(p) {
     if (p === undefined || p.is_visible() === false)
@@ -236,7 +238,8 @@ class Display {
         delta_time = currFrame - prevFrame;
         if (selected_particle > -1) {
             const p_x = particles[selected_particle].x, p_y = particles[selected_particle].y;
-            camera_look_at(p_x + particle_width * scale * 0.5, p_y - particle_width * scale * 0.5);
+            camera_look_at_centerered_cell(p_x, p_y);
+            //camera_look_at(pos[0] + particle_width*0.5, pos - particle_width*0.5)
         }
         ctx.clearRect(0, 0, width, height);
         ctx.drawImage(GRID_CACHE, 0, 0);
@@ -252,10 +255,12 @@ class Display {
             draw_particle(particles[i + 8]);
             draw_particle(particles[i + 9]);
         }
-        ctx.fillStyle = "red";
-        ctx.fillText(`${offset_x},${offset_y}`, 8, 10);
-        ctx.fillStyle = "white";
-        ctx.fillText(`${~~(1000 / delta_time)}`, width - 15, 10, 10);
+        ctx.fillStyle = ui_offset_color;
+        ctx.font = `${ui_font_size}px ${UI_FONT}`;
+        ctx.fillText(`${offset_x.toFixed(2)},${(-offset_y).toFixed(2)}`, 8, 17);
+        ctx.fillStyle = ui_fps_color;
+        ctx.font = `${ui_font_size}px ${UI_FONT}`;
+        ctx.fillText(`${~~(1000 / delta_time)}`, width - 27, 17, 25);
         frame_count++;
         render_interval_id = requestAnimationFrame(nextFrame => this.render_step.call(this, nextFrame, currFrame));
     }
@@ -387,7 +392,7 @@ function world_to_screen_cell(world_x, world_y) {
  * world_y is automatically inverted.
  */
 function camera_look_at(world_x, world_y) {
-    set_offset(world_x * inv_scale - width * 0.5, (-world_y * inv_scale - height * 0.5));
+    set_offset(world_x * inv_scale - width * 0.5, -world_y * inv_scale - height * 0.5);
 }
 /**
  * Forces the camera to look at the center of the screen.
@@ -395,6 +400,18 @@ function camera_look_at(world_x, world_y) {
 function camera_look_at_screen_center() {
     const center = screen_to_world(width * 0.5, height * 0.5);
     camera_look_at(center[0], center[1]);
+}
+/**
+ * Given a world position, pad it to be in the middle of a cell then center the camera around it.
+ *
+ * if `snap_to_grid` is false, simply point the camera half a cell to the right and half a cell to the bottom of the given position, thus center the camera to a cell which is not snapped to the grid.
+ */
+function camera_look_at_centerered_cell(world_x, world_y) {
+    if (snap_to_grid) {
+        let x_pr = world_x < 0 ? -PARTICLE_RESOLUTION * 0.5 : PARTICLE_RESOLUTION * 0.5, y_pr = world_y > 0 ? -PARTICLE_RESOLUTION * 0.5 : -PARTICLE_RESOLUTION * 0.5;
+        return camera_look_at(world_x - world_x % PARTICLE_RESOLUTION + x_pr, world_y - world_y % PARTICLE_RESOLUTION - y_pr);
+    }
+    return camera_look_at(world_x + PARTICLE_RESOLUTION * 0.5, world_y - PARTICLE_RESOLUTION * 0.5);
 }
 // On window resize, trigger adapting canvas resolution.
 window.addEventListener("resize", _ => _update_canvas_size = true);
@@ -792,15 +809,19 @@ function update_grid() {
         _grid_ctx.stroke();
     }
     _grid_ctx.strokeStyle = axis_color;
-    _grid_ctx.lineWidth = 4;
+    _grid_ctx.fillStyle = axis_color;
+    _grid_ctx.lineWidth = 3;
+    _grid_ctx.font = `${ui_font_size}px ${UI_FONT}`;
     _grid_ctx.beginPath();
     if (x_axis !== undefined) {
         _grid_ctx.moveTo(0, x_axis);
         _grid_ctx.lineTo(width, x_axis);
+        _grid_ctx.fillText("x", width - ui_padding - ui_margin, x_axis - ui_padding - ui_margin);
     }
     if (y_axis !== undefined) {
         _grid_ctx.moveTo(y_axis, 0);
         _grid_ctx.lineTo(y_axis, height);
+        _grid_ctx.fillText("y", y_axis + ui_padding + ui_margin, ui_padding + ui_margin);
     }
     _grid_ctx.stroke();
 }

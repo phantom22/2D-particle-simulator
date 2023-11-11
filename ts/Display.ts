@@ -54,9 +54,16 @@ let width:number,
     delta_time:number,
     /** Increments by one at the end of each rendered frame. */
     frame_count:number,
-    
+
     physics_interval_id:number,
     render_interval_id:number;
+
+const UI_FONT = "Verdana";
+let ui_font_size = 15,
+    ui_padding = 5,
+    ui_margin = 15,
+    ui_offset_color = "red",
+    ui_fps_color = "white";
 
 /** This function, before drawing a particles, asserts that it's not an undefined value and if it's a visible particle. */
 function draw_particle(p:Particle) {
@@ -236,7 +243,8 @@ class Display {
             const p_x = particles[selected_particle].x,
                   p_y = particles[selected_particle].y;
             
-            camera_look_at(p_x + particle_width*scale*0.5, p_y - particle_width*scale*0.5)
+            camera_look_at_centerered_cell(p_x, p_y)
+            //camera_look_at(pos[0] + particle_width*0.5, pos - particle_width*0.5)
         }
 
         ctx.clearRect(0,0,width,height);
@@ -255,11 +263,13 @@ class Display {
             draw_particle(particles[i+9]);
         }
 
-        ctx.fillStyle = "red";
-        ctx.fillText(`${offset_x},${offset_y}`,8,10);
+        ctx.fillStyle = ui_offset_color;
+        ctx.font = `${ui_font_size}px ${UI_FONT}`;
+        ctx.fillText(`${offset_x.toFixed(2)},${(-offset_y).toFixed(2)}`, 8, 17);
 
-        ctx.fillStyle = "white";
-        ctx.fillText(`${~~(1000 / delta_time)}`, width - 15, 10, 10)
+        ctx.fillStyle = ui_fps_color;
+        ctx.font = `${ui_font_size}px ${UI_FONT}`;
+        ctx.fillText(`${~~(1000 / delta_time)}`, width - 27, 17, 25)
 
         frame_count++;
 

@@ -66,17 +66,21 @@ function update_grid() {
     }
 
     _grid_ctx.strokeStyle = axis_color;
-    _grid_ctx.lineWidth = 4;
+    _grid_ctx.fillStyle = axis_color;
+    _grid_ctx.lineWidth = 3;
+    _grid_ctx.font = `${ui_font_size}px ${UI_FONT}`;
     _grid_ctx.beginPath();
 
     if (x_axis !== undefined) {
         _grid_ctx.moveTo(0, x_axis);
         _grid_ctx.lineTo(width, x_axis);
+        _grid_ctx.fillText("x", width - ui_padding - ui_margin , x_axis - ui_padding - ui_margin);
     }
 
     if (y_axis !== undefined) {
         _grid_ctx.moveTo(y_axis, 0);
         _grid_ctx.lineTo(y_axis, height);
+        _grid_ctx.fillText("y", y_axis + ui_padding + ui_margin, ui_padding + ui_margin);
     }
 
     _grid_ctx.stroke();
