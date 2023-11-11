@@ -4,7 +4,6 @@ particles.push(new Particle(1, -500, -500, 30/1000, 60/1000, 3/1000000, 6/100000
 particles.push(new Particle(0, 500, -500, -30/1000, 60/1000, -3/1000000, 6/1000000));
 particles.push(new Particle(0, -500, 500, 30/1000, -60/1000, 3/1000000, -6/1000000));
 particles.push(new Particle(1, 500, 500, -30/1000, -60/1000, -3/1000000, -6/1000000));
-
 //  let angle = 0,
 //      distance = 100,
 //      w = (2 * Math.PI) / 288;

@@ -96,7 +96,6 @@ function applyEventListeners(fps:number) {
     scale = scale ?? 1;
     inv_scale = 1 / scale;
     time_scale = time_scale ?? 1;
-    scaled_delta_time = fixed_delta_time * time_scale;
     _is_dragging = false;
     selected_particle = selected_particle ?? -1,
     _sample_counter = 0;

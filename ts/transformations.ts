@@ -41,13 +41,10 @@ function update_bounds() {
 }
 
 /** 
- * Updates the time scale of the simulation..
- * 
- * automatically updates scaled_delta_time.
+ * Updates the time scale of the simulation.
  */
 function set_time_scale(value:number) {
     time_scale = Math.max(_min_time_scale, Math.min(value, _max_time_scale));
-    scaled_delta_time = fixed_delta_time * time_scale;
 }
 
 /**

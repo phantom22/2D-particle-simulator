@@ -16,8 +16,10 @@ let cell_offset_x:number,
      * this value is changed by `set_offset(x,y)`.
      */
     cell_offset_y:number,
-    axis_color = "#52190f",
-    grid_color = "#0f0f0f";
+    ui_axis_color = "#9c9c9c",
+    ui_grid_color = "#0c0c0c",
+    /** If the current particle width is less than this treshold, stop drawing the gridlines. */
+    no_grid_treshold = PARTICLE_RESOLUTION;
 
 /** This function updates the cached grid with a new one. */
 function update_grid() {
@@ -38,9 +40,9 @@ function update_grid() {
     _grid_ctx.clearRect(0, 0, width, height);
     
     // prevent very fine grid lines
-    if (particle_width > 7) {
+    if (particle_width >= no_grid_treshold) {
 
-        _grid_ctx.strokeStyle = grid_color;
+        _grid_ctx.strokeStyle = ui_grid_color;
         _grid_ctx.lineWidth = 1.5;
         _grid_ctx.beginPath();
 
@@ -58,15 +60,14 @@ function update_grid() {
 
             _grid_ctx.moveTo(0, y);
             _grid_ctx.lineTo(width, y);
-
         }
 
         _grid_ctx.stroke();
 
     }
 
-    _grid_ctx.strokeStyle = axis_color;
-    _grid_ctx.fillStyle = axis_color;
+    _grid_ctx.strokeStyle = ui_axis_color;
+    _grid_ctx.fillStyle = ui_axis_color;
     _grid_ctx.lineWidth = 3;
     _grid_ctx.font = `${ui_font_size}px ${UI_FONT}`;
     _grid_ctx.beginPath();

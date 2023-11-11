@@ -43,12 +43,7 @@ let width:number,
     _update_canvas_size:boolean,
     /** Time between two physics frames. Measured in milliseconds. Read-only. */
     fixed_delta_time:number,
-    /** 
-     * Cached value of `fixed_delta_time * time_scale`. Measured in milliseconds. Read-only.
-     * 
-     * ---
-     * this value is changed by `set_time_scale(value)`.
-     */
+    /** Cached value of `delta_time * time_scale`, updated each frame. Measured in milliseconds. Read-only.*/
     scaled_delta_time:number,
     /** Time took to render previous frame. Measured in milliseconds. Read-only. */
     delta_time:number,
@@ -62,8 +57,8 @@ const UI_FONT = "Verdana";
 let ui_font_size = 15,
     ui_padding = 5,
     ui_margin = 15,
-    ui_offset_color = "red",
-    ui_fps_color = "white";
+    ui_offset_color = "#c2ac44",
+    ui_fps_color = "#00ff00";
 
 /** This function, before drawing a particles, asserts that it's not an undefined value and if it's a visible particle. */
 function draw_particle(p:Particle) {
@@ -224,7 +219,7 @@ class Display {
      * This method controls the rendering process. It's defined as follows:
      * 
      * - update canvas size, if needed.
-     * - calculate delta_time.
+     * - calculate delta_time and scaled_delta_time.
      * - if there is a selected particle, center the camera to its position.
      * - clear previous frame.
      * - draw grid.
@@ -238,16 +233,13 @@ class Display {
         if (_update_canvas_size) this.adapt_canvas_size();
         
         delta_time = currFrame - prevFrame;
+        scaled_delta_time = delta_time * time_scale;
 
         if (selected_particle > -1) {
-            const p_x = particles[selected_particle].x,
-                  p_y = particles[selected_particle].y;
-            
-            camera_look_at_centerered_cell(p_x, p_y)
-            //camera_look_at(pos[0] + particle_width*0.5, pos - particle_width*0.5)
+            camera_look_at_centerered_cell(particles[selected_particle].x, particles[selected_particle].y)
         }
 
-        ctx.clearRect(0,0,width,height);
+        ctx.clearRect(0, 0, width, height);
         ctx.drawImage(GRID_CACHE, 0, 0);
 
         for (let i=0; i<particles.length; i += 10) {
@@ -263,12 +255,12 @@ class Display {
             draw_particle(particles[i+9]);
         }
 
-        ctx.fillStyle = ui_offset_color;
         ctx.font = `${ui_font_size}px ${UI_FONT}`;
+
+        ctx.fillStyle = ui_offset_color;
         ctx.fillText(`${offset_x.toFixed(2)},${(-offset_y).toFixed(2)}`, 8, 17);
 
         ctx.fillStyle = ui_fps_color;
-        ctx.font = `${ui_font_size}px ${UI_FONT}`;
         ctx.fillText(`${~~(1000 / delta_time)}`, width - 27, 17, 25)
 
         frame_count++;

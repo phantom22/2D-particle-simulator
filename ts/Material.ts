@@ -5,7 +5,7 @@ const MATERIAL_CACHE = [] as materialCache;
 
 class Material {
     static MATERIALS = {
-        sand: "#C2B280",
+        sand: "#d4b470",
         stone: "#888C8D"
     };
     static MAX_TYPE_VALUE = Object.keys(Material.MATERIALS).length - 1;

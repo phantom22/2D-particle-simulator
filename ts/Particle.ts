@@ -6,7 +6,7 @@ let particles = [] as Particle[],
      * ---
      * this value is changed by `set_scale(value)`.
      */
-    particle_width = 10,
+    particle_width = 5,
     /**
      * Inverse of the current particle_width value. Read-only.
      * 
@@ -65,6 +65,7 @@ class Particle {
 
     /** Should the particle be rendered? */
     is_visible() {
+        // Also add if hidden by another particle aka another particle was already drawn on top of it
         return this.x > bounds_x_min && this.x < bounds_x_max && -this.y > bounds_y_min && -this.y < bounds_y_max
     }
 

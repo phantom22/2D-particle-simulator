@@ -52,19 +52,14 @@ unpaused,
 _update_canvas_size, 
 /** Time between two physics frames. Measured in milliseconds. Read-only. */
 fixed_delta_time, 
-/**
- * Cached value of `fixed_delta_time * time_scale`. Measured in milliseconds. Read-only.
- *
- * ---
- * this value is changed by `set_time_scale(value)`.
- */
+/** Cached value of `delta_time * time_scale`, updated each frame. Measured in milliseconds. Read-only.*/
 scaled_delta_time, 
 /** Time took to render previous frame. Measured in milliseconds. Read-only. */
 delta_time, 
 /** Increments by one at the end of each rendered frame. */
 frame_count, physics_interval_id, render_interval_id;
 const UI_FONT = "Verdana";
-let ui_font_size = 15, ui_padding = 5, ui_margin = 15, ui_offset_color = "red", ui_fps_color = "white";
+let ui_font_size = 15, ui_padding = 5, ui_margin = 15, ui_offset_color = "#c2ac44", ui_fps_color = "#00ff00";
 /** This function, before drawing a particles, asserts that it's not an undefined value and if it's a visible particle. */
 function draw_particle(p) {
     if (p === undefined || p.is_visible() === false)
@@ -222,7 +217,7 @@ class Display {
      * This method controls the rendering process. It's defined as follows:
      *
      * - update canvas size, if needed.
-     * - calculate delta_time.
+     * - calculate delta_time and scaled_delta_time.
      * - if there is a selected particle, center the camera to its position.
      * - clear previous frame.
      * - draw grid.
@@ -236,10 +231,9 @@ class Display {
         if (_update_canvas_size)
             this.adapt_canvas_size();
         delta_time = currFrame - prevFrame;
+        scaled_delta_time = delta_time * time_scale;
         if (selected_particle > -1) {
-            const p_x = particles[selected_particle].x, p_y = particles[selected_particle].y;
-            camera_look_at_centerered_cell(p_x, p_y);
-            //camera_look_at(pos[0] + particle_width*0.5, pos - particle_width*0.5)
+            camera_look_at_centerered_cell(particles[selected_particle].x, particles[selected_particle].y);
         }
         ctx.clearRect(0, 0, width, height);
         ctx.drawImage(GRID_CACHE, 0, 0);
@@ -255,11 +249,10 @@ class Display {
             draw_particle(particles[i + 8]);
             draw_particle(particles[i + 9]);
         }
-        ctx.fillStyle = ui_offset_color;
         ctx.font = `${ui_font_size}px ${UI_FONT}`;
+        ctx.fillStyle = ui_offset_color;
         ctx.fillText(`${offset_x.toFixed(2)},${(-offset_y).toFixed(2)}`, 8, 17);
         ctx.fillStyle = ui_fps_color;
-        ctx.font = `${ui_font_size}px ${UI_FONT}`;
         ctx.fillText(`${~~(1000 / delta_time)}`, width - 27, 17, 25);
         frame_count++;
         render_interval_id = requestAnimationFrame(nextFrame => this.render_step.call(this, nextFrame, currFrame));
@@ -307,13 +300,10 @@ function update_bounds() {
     //physics_distance_from_offset = (width ** 2 + height ** 2) * height * 3 / 2;
 }
 /**
- * Updates the time scale of the simulation..
- *
- * automatically updates scaled_delta_time.
+ * Updates the time scale of the simulation.
  */
 function set_time_scale(value) {
     time_scale = Math.max(_min_time_scale, Math.min(value, _max_time_scale));
-    scaled_delta_time = fixed_delta_time * time_scale;
 }
 /**
  * Sets scale to the specified value. The camera keeps looking at the same center as before.
@@ -506,7 +496,6 @@ function applyEventListeners(fps) {
     scale = scale ?? 1;
     inv_scale = 1 / scale;
     time_scale = time_scale ?? 1;
-    scaled_delta_time = fixed_delta_time * time_scale;
     _is_dragging = false;
     selected_particle = selected_particle ?? -1,
         _sample_counter = 0;
@@ -662,7 +651,7 @@ let particles = [],
  * ---
  * this value is changed by `set_scale(value)`.
  */
-particle_width = 10, 
+particle_width = 5, 
 /**
  * Inverse of the current particle_width value. Read-only.
  *
@@ -714,6 +703,7 @@ class Particle {
     }
     /** Should the particle be rendered? */
     is_visible() {
+        // Also add if hidden by another particle aka another particle was already drawn on top of it
         return this.x > bounds_x_min && this.x < bounds_x_max && -this.y > bounds_y_min && -this.y < bounds_y_max;
     }
     /** Computes the screen position of this particle. If snap_to_grid is set to true, computes the screen_cell position. */
@@ -733,7 +723,7 @@ class Particle {
 const MATERIAL_CACHE = [];
 class Material {
     static MATERIALS = {
-        sand: "#C2B280",
+        sand: "#d4b470",
         stone: "#888C8D"
     };
     static MAX_TYPE_VALUE = Object.keys(Material.MATERIALS).length - 1;
@@ -774,7 +764,9 @@ let cell_offset_x,
  * ---
  * this value is changed by `set_offset(x,y)`.
  */
-cell_offset_y, axis_color = "#52190f", grid_color = "#0f0f0f";
+cell_offset_y, ui_axis_color = "#9c9c9c", ui_grid_color = "#0c0c0c", 
+/** If the current particle width is less than this treshold, stop drawing the gridlines. */
+no_grid_treshold = PARTICLE_RESOLUTION;
 /** This function updates the cached grid with a new one. */
 function update_grid() {
     let end_x = width, end_y = height, x_axis, y_axis;
@@ -788,8 +780,8 @@ function update_grid() {
     GRID_CACHE.height = height;
     _grid_ctx.clearRect(0, 0, width, height);
     // prevent very fine grid lines
-    if (particle_width > 7) {
-        _grid_ctx.strokeStyle = grid_color;
+    if (particle_width >= no_grid_treshold) {
+        _grid_ctx.strokeStyle = ui_grid_color;
         _grid_ctx.lineWidth = 1.5;
         _grid_ctx.beginPath();
         // vertical lines
@@ -808,8 +800,8 @@ function update_grid() {
         }
         _grid_ctx.stroke();
     }
-    _grid_ctx.strokeStyle = axis_color;
-    _grid_ctx.fillStyle = axis_color;
+    _grid_ctx.strokeStyle = ui_axis_color;
+    _grid_ctx.fillStyle = ui_axis_color;
     _grid_ctx.lineWidth = 3;
     _grid_ctx.font = `${ui_font_size}px ${UI_FONT}`;
     _grid_ctx.beginPath();
