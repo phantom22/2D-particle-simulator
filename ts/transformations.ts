@@ -2,28 +2,28 @@
      * Any particle with a x value higher than this can be visible horizontally. Read-only.
      * 
      * ---
-     * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_offset(x,y)`.
+     * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_world_offset(x,y)`.
      */
 let bounds_x_min:number,
     /** 
      * Any particle with a y value higher than this can be visible vertically. Read-only.
      * 
      * ---
-     * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_offset(x,y)`.
+     * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_world_offset(x,y)`.
      */
     bounds_y_min:number,
     /** 
      * Any particle with a x smaller than this can be visible horizontally. 
      * 
      * ---
-     * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_offset(x,y)`.
+     * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_world_offset(x,y)`.
      */
     bounds_x_max:number,
     /** 
      * Visibility bounds - any particle with a y value smaller than this can be visible horizontally. 
      * 
      * ---
-     * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_offset(x,y)`.
+     * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_world_offset(x,y)`.
      */
     bounds_y_max:number;
 
@@ -69,7 +69,7 @@ function set_scale(value:number) {
  * 
  * automatically updates bounds, cell_offset and grid.
  */
-function set_offset(x_value:number, y_value:number) {
+function set_world_offset(x_value:number, y_value:number) {
     offset_x = x_value;
     offset_y = y_value;
     update_bounds();
@@ -135,7 +135,7 @@ function world_to_screen_cell(world_x:number, world_y:number): [screen_cell_x:nu
  * world_y is automatically inverted.
  */
 function camera_look_at(world_x:number, world_y:number) {
-    set_offset(world_x*inv_scale - width*0.5, -world_y*inv_scale - height*0.5);
+    set_world_offset(world_x*inv_scale - width*0.5, -world_y*inv_scale - height*0.5);
 }
 
 /**

@@ -31,14 +31,14 @@ height,
  * How far away is the offset x component from 0. Read-only.
  *
  * ---
- * use `set_offset(x,y)` to change this value.
+ * use `set_world_offset(x,y)` to change this value.
  */
 offset_x, 
 /**
  * How far away is the offset y component from 0. Read-only.
  *
  * ---
- * use `set_offset(x,y)` to change this value.
+ * use `set_world_offset(x,y)` to change this value.
  */
 offset_y, canvas, ctx, 
 /**
@@ -182,7 +182,7 @@ class Display {
         // reset update flag
         _update_canvas_size = false;
         // center the camera to 0,0
-        set_offset(0 - width * 0.5, 0 - height * 0.5);
+        set_world_offset(0 - width * 0.5, 0 - height * 0.5);
         physics_interval_id = setInterval(this.fixed_physics_step.bind(this), fixed_delta_time);
         render_interval_id = requestAnimationFrame(this.render_step.bind(this, 0, 0));
     }
@@ -263,28 +263,28 @@ Object.defineProperty(Display, "IS_RUN_ON_PHONE", { writable: false });
  * Any particle with a x value higher than this can be visible horizontally. Read-only.
  *
  * ---
- * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_offset(x,y)`.
+ * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_world_offset(x,y)`.
  */
 let bounds_x_min, 
 /**
  * Any particle with a y value higher than this can be visible vertically. Read-only.
  *
  * ---
- * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_offset(x,y)`.
+ * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_world_offset(x,y)`.
  */
 bounds_y_min, 
 /**
  * Any particle with a x smaller than this can be visible horizontally.
  *
  * ---
- * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_offset(x,y)`.
+ * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_world_offset(x,y)`.
  */
 bounds_x_max, 
 /**
  * Visibility bounds - any particle with a y value smaller than this can be visible horizontally.
  *
  * ---
- * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_offset(x,y)`.
+ * this values is directly changed by `update_bounds()` but the actual function that triggers the change is `set_world_offset(x,y)`.
  */
 bounds_y_max;
 /**
@@ -324,7 +324,7 @@ function set_scale(value) {
  *
  * automatically updates bounds, cell_offset and grid.
  */
-function set_offset(x_value, y_value) {
+function set_world_offset(x_value, y_value) {
     offset_x = x_value;
     offset_y = y_value;
     update_bounds();
@@ -382,7 +382,7 @@ function world_to_screen_cell(world_x, world_y) {
  * world_y is automatically inverted.
  */
 function camera_look_at(world_x, world_y) {
-    set_offset(world_x * inv_scale - width * 0.5, -world_y * inv_scale - height * 0.5);
+    set_world_offset(world_x * inv_scale - width * 0.5, -world_y * inv_scale - height * 0.5);
 }
 /**
  * Forces the camera to look at the center of the screen.
@@ -403,47 +403,6 @@ function camera_look_at_centerered_cell(world_x, world_y) {
     }
     return camera_look_at(world_x + PARTICLE_RESOLUTION * 0.5, world_y - PARTICLE_RESOLUTION * 0.5);
 }
-// On window resize, trigger adapting canvas resolution.
-window.addEventListener("resize", _ => _update_canvas_size = true);
-window.addEventListener("keydown", e => {
-    if (_last_sample_frame === frame_count)
-        return;
-    switch (e.key) {
-        // On spacebar key press, toggle pause.
-        case " ":
-            unpaused = !unpaused;
-            if (unpaused === true && time_scale === 0) {
-                set_time_scale(1);
-            }
-            _last_sample_frame = frame_count;
-            break;
-        // On right arrow key down, cycle clockwise between the particles by selecting them.
-        case "ArrowRight":
-            if (selected_particle === particles.length - 1)
-                selected_particle = -1;
-            else
-                selected_particle++;
-            break;
-        // On left arrow key down, cycle anti-clockwise between the particles by selecting them.
-        case "ArrowLeft":
-            if (selected_particle === -1)
-                selected_particle = selected_particle = particles.length - 1;
-            else
-                selected_particle--;
-            break;
-        // On ctrl key down, reset selected particle. 
-        case "Control":
-            selected_particle = -1;
-            break;
-        // On g key down, toggle snap_to_grid.
-        case "g":
-            snap_to_grid = !snap_to_grid;
-            _last_sample_frame = frame_count;
-            break;
-        default:
-            break;
-    }
-});
 /** What type of mousemove event is happening right now?
  *
  * - -1 = none
@@ -478,31 +437,48 @@ inv_scale,
  */
 time_scale, 
 /**
- * How much scolling the wheel will change a value in a second. Read-only.
+ * How much scrolling the wheel will change the `scale` per second of scrolling. Read-only.
  *
  * the value depends on the detected frame rate.
  */
-scroll_wheel_delta;
+scale_scroll_wheel_delta, 
+/**
+ * How much scrolling the wheel will change the `time_scale` per second of scrolling. Read-only.
+ *
+ * the value depends on the detected frame rate.
+ */
+time_scale_scroll_wheel_delta;
 /** Minimun `scale` value. */
 const _min_scale = 0.08, 
 /** Maximum `scale` value. */
-_max_scale = 6.25, 
-/** Maximum number of mousemove events processed per frame. */
-_max_samples_per_frame = 3, 
+_max_scale = 10, 
+/** How much scrolling in seconds is needed to go from `_min_scale` to `_max_scale`. */
+_scale_min_to_max_time = 3, 
 /** Minimum `time_scale` value. */
 _min_time_scale = 0, 
 /** Minimum `time_scale` value. */
-_max_time_scale = 5;
-/** Has the user began a drag event? */
-let _is_dragging = false, 
+_max_time_scale = 5, 
+/** How much scrolling in seconds is needed to go from `_min_time_scale` to `_max_time_scale`. */
+_time_scale_min_to_max_time = 1, 
+/** When pressing ctrl and scrolling the mouse wheel, this multiplier is applied to `scale_scroll_wheel_delta` and `time_scale_scroll_wheel_delta`. */
+_ctrl_wheel_slow_down = 1 / 10, 
+/** When pressing shift and scrolling the mouse wheel, this multiplier is applied to `scale_scroll_wheel_delta` and `time_scale_scroll_wheel_delta`. */
+_shift_wheel_speed_up = 3, 
+/** Maximum number of mousemove events processed per frame. */
+_max_samples_per_frame = 3.;
+/** Is the user in the middle of a drag event? */
+let _is_dragging, 
+/** Is the user currently pressing the T button, enabling `time_scale` modification? */
+_is_pressing_time_scale_button, 
 /**
  * The selected particle is identified by its ID, which is its position in the `particles` array.
  *
  * won't reset if already defined.
  */
-selected_particle, 
+selected_particle, selected_particle_camera_offset, 
 /** Helps laptop users; if set to true, M1 instead of M3 is used to move around the grid. */
 no_mouse_mode = false;
+console.warn("selected_particle_camera_offset is yet to be implemented on mouse move when selected_particle is greater than -1!");
 /**
  * This functions applies all the event listeners needed to `canvas`. The added events are:
  *
@@ -517,12 +493,14 @@ no_mouse_mode = false;
 function applyEventListeners(fps) {
     _drag_type = -1;
     _previous_mouse_position = null;
-    scroll_wheel_delta = 15 / fps;
+    scale_scroll_wheel_delta = (_max_scale - _min_scale) / (fps * _scale_min_to_max_time);
+    time_scale_scroll_wheel_delta = (_max_time_scale - _min_time_scale) / (fps * _time_scale_min_to_max_time);
     _last_sample_frame = -1;
     scale = scale ?? 1;
     inv_scale = 1 / scale;
     time_scale = time_scale ?? 1;
     _is_dragging = false;
+    _is_pressing_time_scale_button = false;
     selected_particle = selected_particle ?? -1,
         _sample_counter = 0;
     canvas.addEventListener("wheel", mousewheel);
@@ -531,26 +509,101 @@ function applyEventListeners(fps) {
     canvas.addEventListener("mouseup", mouseup);
     canvas.addEventListener("mouseleave", mouseleave);
 }
+// On window resize, trigger `Display.adapt_canvas_size()`.
+window.addEventListener("resize", _ => _update_canvas_size = true);
+// Disable document scaling on CTRL + MOUSE WHEEL.
+window.addEventListener("wheel", e => {
+    if (e.ctrlKey)
+        e.preventDefault();
+}, { passive: false }); // passive:false => enable preventDefault().
 /**
- * This function will update the `scale` value (if the shift key was not pressed) in the following way:
- *
- * - if the scroll wheel was moved forward, then zoom-out.
- * - zoom-in, otherwise.
- *
- * If the shift key was pressed, update the `time_scale` value:
- *
-  - if the scroll wheel was moved forward, then speed-up the simulation.
-  - slow-down otherwise
+ * This functions checks for keyboard input; the following keys are mapped:
+ * - SPACEBAR:
+ *      toggle pause. If, after toggling, `unpaused` is set to true and `time_scale` is set to 0,
+ *          simply reset it to 1.
+ * - RIGHT ARROW: cycle clockwise through the particles by assigning them to `selected_particle`.
+ * - LEFT ARROW: cycle anti-clockwise through the particles by assigning them to `selected_particle`.
+ * - Esc: disable its default behaviour and set `selected_particle` to -1.
+ * - G: toggle `snap_to_grid` filter.
  *
  * The scale update rate is capped to the `Display.fps` refresh rate by `_last_sample_frame` which is updated each time
- * this function is succesfully triggered.
+ * this function is succesfully triggered (expect for when pressing the ALT key).
+ */
+window.addEventListener("keydown", e => {
+    // events that are uncapped.
+    switch (e.key) {
+        case "t":
+            _is_pressing_time_scale_button = true;
+            return;
+        case "Esc":
+            selected_particle = -1;
+            return;
+        case "ArrowRight":
+            if (selected_particle === particles.length - 1)
+                selected_particle = -1;
+            else
+                selected_particle++;
+            return;
+        case "ArrowLeft":
+            if (selected_particle === -1)
+                selected_particle = selected_particle = particles.length - 1;
+            else
+                selected_particle--;
+            return;
+    }
+    if (_last_sample_frame === frame_count)
+        return;
+    // events that need to be capped to the refresh rate.
+    switch (e.key) {
+        case " ":
+            unpaused = !unpaused;
+            if (unpaused === true && time_scale === 0) {
+                set_time_scale(1);
+            }
+            break;
+        // On G key down, toggle snap_to_grid.
+        case "g":
+            snap_to_grid = !snap_to_grid;
+            break;
+        default:
+            break;
+    }
+}, { passive: false });
+window.addEventListener("keyup", e => {
+    switch (e.key) {
+        case "t":
+            _is_pressing_time_scale_button = false;
+            break;
+        case "Shift":
+            _is_pressing_time_scale_button = false;
+            break;
+        default:
+            break;
+    }
+});
+/**
+ * This function will update the `scale` value (if the T key was not pressed) in the following way:
+ *
+ * - on SCROLL WHEEL FORWARD, then zoom-out.
+ * - zoom-in, otherwise.
+ *
+ * If the T key was pressed, update the `time_scale` value in the following way:
+ *
+  - on SCROLL WHEEL FORWARD speed-up the simulation.
+  - slow-down otherwise.
+ *
+ * The mouse wheel update rate is capped to the `Display.fps` refresh rate by `_last_sample_frame` which is updated each time
+ * this function is succesfully triggered;
+ *
+ * when pressing the SHIFT key, you can noticeably speed up the rate of change of the zoom or of the time scale;
+ * the opposite happens when the CTRL key is pressed.
  */
 function mousewheel(e) {
     if (_last_sample_frame === frame_count)
         return;
-    const change = -Math.sign(e.deltaY) * scroll_wheel_delta;
-    if (e.shiftKey) {
-        set_time_scale(time_scale + change);
+    const multiplier = e.shiftKey ? _shift_wheel_speed_up : (e.ctrlKey ? _ctrl_wheel_slow_down : 1), change_dir = -Math.sign(e.deltaY) * multiplier;
+    if (_is_pressing_time_scale_button) {
+        set_time_scale(time_scale + change_dir * time_scale_scroll_wheel_delta);
         if (time_scale === 0 && unpaused === true) {
             unpaused = false;
         }
@@ -559,7 +612,7 @@ function mousewheel(e) {
         }
     }
     else {
-        set_scale(scale + change);
+        set_scale(scale + change_dir * scale_scroll_wheel_delta);
     }
     _last_sample_frame = frame_count;
 }
@@ -615,12 +668,12 @@ function mousemove(e) {
         // Left button
         case 0:
             if (no_mouse_mode)
-                set_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
+                set_world_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
             break;
         // Wheel/Middle button
         case 1:
             if (!no_mouse_mode)
-                set_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
+                set_world_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
             break;
         // Right button
         case 2:
@@ -668,6 +721,7 @@ function mouseup(e) {
  */
 function mouseleave(e) {
     _drag_type = -1;
+    _is_pressing_time_scale_button = false;
 }
 /** This array contains all the particles to be rendered. */
 let particles = [], 
@@ -781,14 +835,14 @@ const GRID_CACHE = document.createElement("canvas"), _grid_ctx = GRID_CACHE.getC
  * Cached value of `particle_width - x_offset % particle_width`, needed for `update_grid()`. Read-only.
  *
  * ---
- * this value is changed by `set_offset(x,y)`.
+ * this value is changed by `set_world_offset(x,y)`.
  */
 let cell_offset_x, 
 /**
  * Cached value of `particle_height - y_offset % particle_width`, needed for `update_grid()`. Read-only.
  *
  * ---
- * this value is changed by `set_offset(x,y)`.
+ * this value is changed by `set_world_offset(x,y)`.
  */
 cell_offset_y, ui_axis_color = "#9c9c9c", ui_grid_color = "#0c0c0c", 
 /** If the current particle width is less than this treshold, stop drawing the gridlines. */
@@ -855,6 +909,7 @@ const display = new Display("#display", { fixed_fps: 60 });
         particles.push(new Particle(0, /*(angle<Math.PI*0.5||angle>3*Math.PI*0.5 ? -particle_width : 0)*/ -particle_width * 0.5, /*(angle<Math.PI ? -particle_width : 0) +*/ particle_width * 0.5, vx_module * Math.cos(angle), vy_module * Math.sin(angle), ax_module * Math.cos(angle), ay_module * Math.sin(angle)));
     }
 })();
+set_scale(0.1);
 //  let angle = 0,
 //      distance = 100,
 //      w = (2 * Math.PI) / 288;

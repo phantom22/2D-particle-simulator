@@ -6,14 +6,14 @@ const GRID_CACHE = document.createElement("canvas"),
      * Cached value of `particle_width - x_offset % particle_width`, needed for `update_grid()`. Read-only. 
      * 
      * ---
-     * this value is changed by `set_offset(x,y)`.
+     * this value is changed by `set_world_offset(x,y)`.
      */
 let cell_offset_x:number,
     /** 
      * Cached value of `particle_height - y_offset % particle_width`, needed for `update_grid()`. Read-only. 
      * 
      * ---
-     * this value is changed by `set_offset(x,y)`.
+     * this value is changed by `set_world_offset(x,y)`.
      */
     cell_offset_y:number,
     ui_axis_color = "#9c9c9c",

@@ -1,41 +1,3 @@
-// On window resize, trigger adapting canvas resolution.
-window.addEventListener("resize", _ => _update_canvas_size = true);
-
-window.addEventListener("keydown", e => {
-    if (_last_sample_frame === frame_count) return;
-    switch (e.key) {
-        // On spacebar key press, toggle pause.
-        case " ":
-            unpaused = !unpaused;
-            if (unpaused === true && time_scale === 0) {
-                set_time_scale(1);
-            }
-            _last_sample_frame = frame_count;
-            break;
-        // On right arrow key down, cycle clockwise between the particles by selecting them.
-        case "ArrowRight":
-            if (selected_particle ===  particles.length - 1) selected_particle = -1;
-            else selected_particle++;
-            break;
-        // On left arrow key down, cycle anti-clockwise between the particles by selecting them.
-        case "ArrowLeft":
-            if (selected_particle === -1) selected_particle = selected_particle = particles.length - 1;
-            else selected_particle--;
-            break;
-        // On ctrl key down, reset selected particle. 
-        case "Control":
-            selected_particle = -1;
-            break;
-        // On g key down, toggle snap_to_grid.
-        case "g":
-            snap_to_grid = !snap_to_grid;
-            _last_sample_frame = frame_count;
-            break;
-        default:
-            break;
-    }
-});
-
 /** What type of mousemove event is happening right now?
  * 
  * - -1 = none
@@ -71,33 +33,52 @@ let _drag_type: -1|0|1|2,
      */
     time_scale:number,
     /** 
-     * How much scolling the wheel will change a value in a second. Read-only.
+     * How much scrolling the wheel will change the `scale` per second of scrolling. Read-only.
      * 
      * the value depends on the detected frame rate.
      */
-    scroll_wheel_delta:number;
+    scale_scroll_wheel_delta:number,
+    /** 
+     * How much scrolling the wheel will change the `time_scale` per second of scrolling. Read-only.
+     * 
+     * the value depends on the detected frame rate.
+     */
+    time_scale_scroll_wheel_delta:number;
       /** Minimun `scale` value. */
 const _min_scale = 0.08,
       /** Maximum `scale` value. */
-      _max_scale = 6.25,
-      /** Maximum number of mousemove events processed per frame. */
-      _max_samples_per_frame = 3,
+      _max_scale = 10,
+      /** How much scrolling in seconds is needed to go from `_min_scale` to `_max_scale`. */
+      _scale_min_to_max_time = 3,
       /** Minimum `time_scale` value. */
       _min_time_scale = 0,
       /** Minimum `time_scale` value. */
-      _max_time_scale = 5;
+      _max_time_scale = 5,
+      /** How much scrolling in seconds is needed to go from `_min_time_scale` to `_max_time_scale`. */
+      _time_scale_min_to_max_time = 1,
+      /** When pressing ctrl and scrolling the mouse wheel, this multiplier is applied to `scale_scroll_wheel_delta` and `time_scale_scroll_wheel_delta`. */
+      _ctrl_wheel_slow_down = 1/10,
+      /** When pressing shift and scrolling the mouse wheel, this multiplier is applied to `scale_scroll_wheel_delta` and `time_scale_scroll_wheel_delta`. */
+      _shift_wheel_speed_up = 3,
+      /** Maximum number of mousemove events processed per frame. */
+      _max_samples_per_frame = 3.
 
-    /** Has the user began a drag event? */
-let _is_dragging = false,
+    /** Is the user in the middle of a drag event? */
+let _is_dragging:boolean,
+    /** Is the user currently pressing the T button, enabling `time_scale` modification? */
+    _is_pressing_time_scale_button:boolean,
     /** 
      * The selected particle is identified by its ID, which is its position in the `particles` array. 
      * 
      * won't reset if already defined.
      */
     selected_particle:number,
+    selected_particle_camera_offset:[x:number, y:number],
     /** Helps laptop users; if set to true, M1 instead of M3 is used to move around the grid. */
     no_mouse_mode = false;
 
+
+console.warn("selected_particle_camera_offset is yet to be implemented on mouse move when selected_particle is greater than -1!")
 /** 
  * This functions applies all the event listeners needed to `canvas`. The added events are:
  * 
@@ -112,12 +93,14 @@ let _is_dragging = false,
 function applyEventListeners(fps:number) {
     _drag_type = -1;
     _previous_mouse_position = null;
-    scroll_wheel_delta = 15 / fps;
+    scale_scroll_wheel_delta = (_max_scale - _min_scale) / (fps * _scale_min_to_max_time);
+    time_scale_scroll_wheel_delta = (_max_time_scale - _min_time_scale) / (fps * _time_scale_min_to_max_time);
     _last_sample_frame = -1;
     scale = scale ?? 1;
     inv_scale = 1 / scale;
     time_scale = time_scale ?? 1;
     _is_dragging = false;
+    _is_pressing_time_scale_button = false;
     selected_particle = selected_particle ?? -1,
     _sample_counter = 0;
 
@@ -128,27 +111,101 @@ function applyEventListeners(fps:number) {
     canvas.addEventListener("mouseleave", mouseleave);
 }
 
+// On window resize, trigger `Display.adapt_canvas_size()`.
+window.addEventListener("resize", _ => _update_canvas_size = true);
+// Disable document scaling on CTRL + MOUSE WHEEL.
+window.addEventListener("wheel", e => { 
+    if (e.ctrlKey) e.preventDefault() 
+}, { passive:false }); // passive:false => enable preventDefault().
+
 /**
- * This function will update the `scale` value (if the shift key was not pressed) in the following way:
+ * This functions checks for keyboard input; the following keys are mapped:
+ * - SPACEBAR: 
+ *      toggle pause. If, after toggling, `unpaused` is set to true and `time_scale` is set to 0,
+ *          simply reset it to 1.
+ * - RIGHT ARROW: cycle clockwise through the particles by assigning them to `selected_particle`.
+ * - LEFT ARROW: cycle anti-clockwise through the particles by assigning them to `selected_particle`.
+ * - Esc: disable its default behaviour and set `selected_particle` to -1.
+ * - G: toggle `snap_to_grid` filter.
  * 
- * - if the scroll wheel was moved forward, then zoom-out.
+ * The scale update rate is capped to the `Display.fps` refresh rate by `_last_sample_frame` which is updated each time
+ * this function is succesfully triggered (expect for when pressing the ALT key).
+ */
+window.addEventListener("keydown", e => {
+    // events that are uncapped.
+    switch (e.key) {
+        case "t":
+            _is_pressing_time_scale_button = true;
+            return;
+        case "Esc":
+            selected_particle = -1;
+            return;
+        case "ArrowRight":
+            if (selected_particle ===  particles.length - 1) selected_particle = -1;
+            else selected_particle++;
+            return;
+        case "ArrowLeft":
+            if (selected_particle === -1) selected_particle = selected_particle = particles.length - 1;
+            else selected_particle--;
+            return;
+    }
+
+    if (_last_sample_frame === frame_count) return;
+    // events that need to be capped to the refresh rate.
+    switch (e.key) {
+        case " ":
+            unpaused = !unpaused;
+            if (unpaused === true && time_scale === 0) {
+                set_time_scale(1);
+            }
+            break;
+        // On G key down, toggle snap_to_grid.
+        case "g":
+            snap_to_grid = !snap_to_grid;
+            break;
+        default:
+            break;
+    }
+}, { passive:false });
+
+window.addEventListener("keyup", e  => {
+    switch (e.key) {
+        case "t":
+            _is_pressing_time_scale_button = false;
+            break;
+        case "Shift":
+            _is_pressing_time_scale_button = false;
+            break;
+        default:
+            break;
+    }
+});
+
+/**
+ * This function will update the `scale` value (if the T key was not pressed) in the following way:
+ * 
+ * - on SCROLL WHEEL FORWARD, then zoom-out.
  * - zoom-in, otherwise.
  * 
- * If the shift key was pressed, update the `time_scale` value:
+ * If the T key was pressed, update the `time_scale` value in the following way:
  * 
-  - if the scroll wheel was moved forward, then speed-up the simulation.
-  - slow-down otherwise
+  - on SCROLL WHEEL FORWARD speed-up the simulation.
+  - slow-down otherwise.
  *
- * The scale update rate is capped to the `Display.fps` refresh rate by `_last_sample_frame` which is updated each time
- * this function is succesfully triggered.
+ * The mouse wheel update rate is capped to the `Display.fps` refresh rate by `_last_sample_frame` which is updated each time
+ * this function is succesfully triggered; 
+ * 
+ * when pressing the SHIFT key, you can noticeably speed up the rate of change of the zoom or of the time scale;
+ * the opposite happens when the CTRL key is pressed.
  */
 function mousewheel(this:HTMLCanvasElement, e:WheelEvent) {
     if (_last_sample_frame === frame_count) return;
 
-    const change = -Math.sign(e.deltaY) * scroll_wheel_delta;
+    const multiplier = e.shiftKey ? _shift_wheel_speed_up : (e.ctrlKey ? _ctrl_wheel_slow_down : 1),
+          change_dir = -Math.sign(e.deltaY) * multiplier;
 
-    if (e.shiftKey) {
-        set_time_scale(time_scale + change);
+    if (_is_pressing_time_scale_button) {
+        set_time_scale(time_scale + change_dir * time_scale_scroll_wheel_delta);
         if (time_scale === 0 && unpaused === true) {
             unpaused = false;
         }
@@ -157,7 +214,7 @@ function mousewheel(this:HTMLCanvasElement, e:WheelEvent) {
         }
     }
     else {
-        set_scale(scale + change);
+        set_scale(scale + change_dir * scale_scroll_wheel_delta);
     }
     _last_sample_frame = frame_count;
 }
@@ -214,11 +271,11 @@ function mousemove(this:HTMLCanvasElement, e:MouseEvent) {
     switch (_drag_type) {
         // Left button
         case 0:
-            if (no_mouse_mode) set_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
+            if (no_mouse_mode) set_world_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
             break;
         // Wheel/Middle button
         case 1:
-            if (!no_mouse_mode) set_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
+            if (!no_mouse_mode) set_world_offset(offset_x + _previous_mouse_position[0] - currentPos[0], offset_y + _previous_mouse_position[1] - currentPos[1]);
             break;
         // Right button
         case 2:
@@ -270,4 +327,5 @@ function mouseup(this:HTMLCanvasElement, e:MouseEvent) {
  */
 function mouseleave(this:HTMLCanvasElement, e:MouseEvent) {
     _drag_type = -1;
+    _is_pressing_time_scale_button = false;
 }

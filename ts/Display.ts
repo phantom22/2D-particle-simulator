@@ -20,14 +20,14 @@ let width:number,
      * How far away is the offset x component from 0. Read-only.
      * 
      * ---
-     * use `set_offset(x,y)` to change this value.
+     * use `set_world_offset(x,y)` to change this value.
      */
     offset_x:number,
     /** 
      * How far away is the offset y component from 0. Read-only.
      * 
      * ---
-     * use `set_offset(x,y)` to change this value.
+     * use `set_world_offset(x,y)` to change this value.
      */
     offset_y:number,
     canvas: HTMLCanvasElement,
@@ -180,7 +180,7 @@ class Display {
         // reset update flag
         _update_canvas_size = false;
         // center the camera to 0,0
-        set_offset(0 - width*0.5, 0 - height*0.5)
+        set_world_offset(0 - width*0.5, 0 - height*0.5)
 
         physics_interval_id = setInterval(this.fixed_physics_step.bind(this), fixed_delta_time);
         render_interval_id = requestAnimationFrame(this.render_step.bind(this,0,0))
