@@ -125,7 +125,7 @@ window.addEventListener("wheel", e => {
  *          simply reset it to 1.
  * - RIGHT ARROW: cycle clockwise through the particles by assigning them to `selected_particle`.
  * - LEFT ARROW: cycle anti-clockwise through the particles by assigning them to `selected_particle`.
- * - Esc: disable its default behaviour and set `selected_particle` to -1.
+ * - Escape: disable its default behaviour and set `selected_particle` to -1.
  * - G: toggle `snap_to_grid` filter.
  * 
  * The scale update rate is capped to the `Display.fps` refresh rate by `_last_sample_frame` which is updated each time
@@ -137,7 +137,7 @@ window.addEventListener("keydown", e => {
         case "t":
             _is_pressing_time_scale_button = true;
             return;
-        case "Esc":
+        case "Escape":
             selected_particle = -1;
             return;
         case "ArrowRight":
