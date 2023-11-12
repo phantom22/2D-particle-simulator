@@ -405,7 +405,9 @@ function camera_look_at_centerered_cell(world_x, world_y) {
 }
 // On window resize, trigger adapting canvas resolution.
 window.addEventListener("resize", _ => _update_canvas_size = true);
-window.addEventListener("keypress", e => {
+window.addEventListener("keydown", e => {
+    if (_last_sample_frame === frame_count)
+        return;
     switch (e.key) {
         // On spacebar key press, toggle pause.
         case " ":
@@ -413,6 +415,30 @@ window.addEventListener("keypress", e => {
             if (unpaused === true && time_scale === 0) {
                 set_time_scale(1);
             }
+            _last_sample_frame = frame_count;
+            break;
+        // On right arrow key down, cycle clockwise between the particles by selecting them.
+        case "ArrowRight":
+            if (selected_particle === particles.length - 1)
+                selected_particle = -1;
+            else
+                selected_particle++;
+            break;
+        // On left arrow key down, cycle anti-clockwise between the particles by selecting them.
+        case "ArrowLeft":
+            if (selected_particle === -1)
+                selected_particle = selected_particle = particles.length - 1;
+            else
+                selected_particle--;
+            break;
+        // On ctrl key down, reset selected particle. 
+        case "Control":
+            selected_particle = -1;
+            break;
+        // On g key down, toggle snap_to_grid.
+        case "g":
+            snap_to_grid = !snap_to_grid;
+            _last_sample_frame = frame_count;
             break;
         default:
             break;
@@ -466,7 +492,7 @@ _max_samples_per_frame = 3,
 /** Minimum `time_scale` value. */
 _min_time_scale = 0, 
 /** Minimum `time_scale` value. */
-_max_time_scale = 2;
+_max_time_scale = 5;
 /** Has the user began a drag event? */
 let _is_dragging = false, 
 /**
@@ -818,10 +844,17 @@ function update_grid() {
     _grid_ctx.stroke();
 }
 const display = new Display("#display", { fixed_fps: 60 });
-particles.push(new Particle(1, -500, -500, 30 / 1000, 60 / 1000, 3 / 1000000, 6 / 1000000));
-particles.push(new Particle(0, 500, -500, -30 / 1000, 60 / 1000, -3 / 1000000, 6 / 1000000));
-particles.push(new Particle(0, -500, 500, 30 / 1000, -60 / 1000, 3 / 1000000, -6 / 1000000));
-particles.push(new Particle(1, 500, 500, -30 / 1000, -60 / 1000, -3 / 1000000, -6 / 1000000));
+// particles.push(new Particle(1, -500, -500, 30/1000, 60/1000, 3/1000000, 6/1000000));
+// particles.push(new Particle(0, 500, -500, -30/1000, 60/1000, -3/1000000, 6/1000000));
+// particles.push(new Particle(0, -500, 500, 30/1000, -60/1000, 3/1000000, -6/1000000));
+// particles.push(new Particle(1, 500, 500, -30/1000, -60/1000, -3/1000000, -6/1000000));
+(function () {
+    const quantity = 1000, delta_angle = 2 * Math.PI / quantity, vx_module = 0 / 1000, vy_module = 0 / 1000, ax_module = 9.81 / 1000000, ay_module = 9.81 / 1000000;
+    for (let i = 0; i < quantity; i++) {
+        const angle = i * delta_angle;
+        particles.push(new Particle(0, /*(angle<Math.PI*0.5||angle>3*Math.PI*0.5 ? -particle_width : 0)*/ -particle_width * 0.5, /*(angle<Math.PI ? -particle_width : 0) +*/ particle_width * 0.5, vx_module * Math.cos(angle), vy_module * Math.sin(angle), ax_module * Math.cos(angle), ay_module * Math.sin(angle)));
+    }
+})();
 //  let angle = 0,
 //      distance = 100,
 //      w = (2 * Math.PI) / 288;

@@ -1,7 +1,8 @@
 // On window resize, trigger adapting canvas resolution.
 window.addEventListener("resize", _ => _update_canvas_size = true);
 
-window.addEventListener("keypress", e => {
+window.addEventListener("keydown", e => {
+    if (_last_sample_frame === frame_count) return;
     switch (e.key) {
         // On spacebar key press, toggle pause.
         case " ":
@@ -9,6 +10,26 @@ window.addEventListener("keypress", e => {
             if (unpaused === true && time_scale === 0) {
                 set_time_scale(1);
             }
+            _last_sample_frame = frame_count;
+            break;
+        // On right arrow key down, cycle clockwise between the particles by selecting them.
+        case "ArrowRight":
+            if (selected_particle ===  particles.length - 1) selected_particle = -1;
+            else selected_particle++;
+            break;
+        // On left arrow key down, cycle anti-clockwise between the particles by selecting them.
+        case "ArrowLeft":
+            if (selected_particle === -1) selected_particle = selected_particle = particles.length - 1;
+            else selected_particle--;
+            break;
+        // On ctrl key down, reset selected particle. 
+        case "Control":
+            selected_particle = -1;
+            break;
+        // On g key down, toggle snap_to_grid.
+        case "g":
+            snap_to_grid = !snap_to_grid;
+            _last_sample_frame = frame_count;
             break;
         default:
             break;
@@ -64,7 +85,7 @@ const _min_scale = 0.08,
       /** Minimum `time_scale` value. */
       _min_time_scale = 0,
       /** Minimum `time_scale` value. */
-      _max_time_scale = 2;
+      _max_time_scale = 5;
 
     /** Has the user began a drag event? */
 let _is_dragging = false,
