@@ -49,6 +49,11 @@ let width:number,
     delta_time:number,
     /** Increments by one at the end of each rendered frame. */
     frame_count:number,
+    dinamic_fps_enabled:boolean,
+    dinamic_fps_active:boolean,
+    dinamic_fps_stall_frames:number,
+    dinamic_fps_target_frame:number,
+    dinamic_fps_counter:number,
 
     physics_interval_id:number,
     render_interval_id:number;
@@ -62,8 +67,64 @@ let ui_font_size = 15,
     ui_concurrent_fps_samples:number,
     ui_fps_samples:number[];
 
+function unsafe_draw_particle(p:Particle) {
+    if (p.is_visible() === false) return;
+
+    const pos = p.screen_position();
+    ctx.drawImage(MATERIAL_CACHE[p.material.type], pos[0], pos[1], particle_width, particle_width);
+}
+
+function draw_bulk(safe_loops:number) {
+    for (let i=0; i<safe_loops; i++) {
+        const o = i*20;
+        unsafe_draw_particle(particles[o]);
+        unsafe_draw_particle(particles[o+1]);
+        unsafe_draw_particle(particles[o+2]);
+        unsafe_draw_particle(particles[o+3]);
+        unsafe_draw_particle(particles[o+4]);
+        unsafe_draw_particle(particles[o+5]);
+        unsafe_draw_particle(particles[o+6]);
+        unsafe_draw_particle(particles[o+7]);
+        unsafe_draw_particle(particles[o+8]);
+        unsafe_draw_particle(particles[o+9]);
+        unsafe_draw_particle(particles[o+10]);
+        unsafe_draw_particle(particles[o+11]);
+        unsafe_draw_particle(particles[o+12]);
+        unsafe_draw_particle(particles[o+13]);
+        unsafe_draw_particle(particles[o+14]);
+        unsafe_draw_particle(particles[o+15]);
+        unsafe_draw_particle(particles[o+16]);
+        unsafe_draw_particle(particles[o+17]);
+        unsafe_draw_particle(particles[o+18]);
+        unsafe_draw_particle(particles[o+19]);
+    }
+}
+
+function draw_remaining_bulk(safe_loops:number) {
+    const o = safe_loops*20;
+    safe_draw_particle(particles[o]);
+    safe_draw_particle(particles[o+1]);
+    safe_draw_particle(particles[o+2]);
+    safe_draw_particle(particles[o+3]);
+    safe_draw_particle(particles[o+4]);
+    safe_draw_particle(particles[o+5]);
+    safe_draw_particle(particles[o+6]);
+    safe_draw_particle(particles[o+7]);
+    safe_draw_particle(particles[o+8]);
+    safe_draw_particle(particles[o+9]);
+    safe_draw_particle(particles[o+10]);
+    safe_draw_particle(particles[o+11]);
+    safe_draw_particle(particles[o+12]);
+    safe_draw_particle(particles[o+13]);
+    safe_draw_particle(particles[o+14]);
+    safe_draw_particle(particles[o+15]);
+    safe_draw_particle(particles[o+16]);
+    safe_draw_particle(particles[o+17]);
+    safe_draw_particle(particles[o+18]);
+    safe_draw_particle(particles[o+19]);
+}
 /** This function, before drawing a particles, asserts that it's not an undefined value and if it's a visible particle. */
-function draw_particle(p:Particle) {
+function safe_draw_particle(p:Particle) {
     if (p === undefined || p.is_visible() === false) return;
 
     const pos = p.screen_position();
@@ -176,6 +237,13 @@ class Display {
         Object.defineProperty(this,"fixed_fps",{value:fixed_fps,writable:false});
         fixed_delta_time = 1000 / fixed_fps;
         applyEventListeners(fps);
+        if (fps > 60) {
+            dinamic_fps_enabled = true;
+            dinamic_fps_active = false;
+            dinamic_fps_stall_frames = ~~(fps/60);
+            dinamic_fps_counter = 0;
+            dinamic_fps_target_frame = 0;
+        }
 
         unpaused = unpaused ?? true;
         frame_count = 0;
@@ -244,6 +312,49 @@ class Display {
         _update_canvas_size = false;
 
     }
+    multithreaded_render_step(currFrame?:DOMHighResTimeStamp,prevFrame?:DOMHighResTimeStamp) {
+
+        throw "unimplemented!";
+        
+        if (_update_canvas_size) this.adapt_canvas_size();
+        
+        delta_time = currFrame - prevFrame;
+        ui_fps_samples.push(1000 / delta_time);
+        if (ui_fps_samples.length === ui_concurrent_fps_samples + 1) {
+            ui_fps_samples.shift();
+        }
+        const current_fps = ui_fps_samples.reduce((a,b) => a+b) / ui_fps_samples.length;
+        //if (dinamic_fps_enabled && current_fps < 60) {
+        //    dinamic_fps_active = true;
+        //    dinamic_fps_target_frame
+        //}
+
+        scaled_delta_time = delta_time * time_scale;
+        if (_is_pressing_reverse_time_scale_button) scaled_delta_time = -scaled_delta_time;
+
+        if (selected_particle > -1) {
+            camera_look_at_centerered_cell(particles[selected_particle].x, particles[selected_particle].y)
+        }
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.drawImage(GRID_CACHE, 0, 0);
+
+        const safe_loops = ~~(particles.length / 20);
+        draw_bulk(safe_loops);
+        draw_remaining_bulk(safe_loops);
+
+        ctx.font = `${ui_font_size}px ${UI_FONT}`;
+
+        ctx.fillStyle = ui_offset_color;
+        ctx.fillText(`${offset_x.toFixed(2)},${(-offset_y).toFixed(2)}`, 8, 17);
+
+        ctx.fillStyle = ui_fps_color;
+        ctx.fillText(`${~~current_fps}`, width - 27, 17, 25)
+
+        frame_count++;
+
+        render_interval_id = requestAnimationFrame(nextFrame => this.render_step.call(this,nextFrame,currFrame));
+    }
     /**
      * This method controls the rendering process. It's defined as follows:
      * 
@@ -262,6 +373,12 @@ class Display {
         if (_update_canvas_size) this.adapt_canvas_size();
         
         delta_time = currFrame - prevFrame;
+        ui_fps_samples.push(1000 / delta_time);
+        const current_fps = ui_fps_samples.reduce((a,b) => a+b) / ui_fps_samples.length;
+        if (ui_fps_samples.length === ui_concurrent_fps_samples + 1) {
+            ui_fps_samples.shift();
+        }
+
         scaled_delta_time = delta_time * time_scale;
         if (_is_pressing_reverse_time_scale_button) scaled_delta_time = -scaled_delta_time;
 
@@ -272,41 +389,17 @@ class Display {
         ctx.clearRect(0, 0, width, height);
         ctx.drawImage(GRID_CACHE, 0, 0);
 
-        for (let i=0; i<particles.length; i+=20) {
-            draw_particle(particles[i]);
-            draw_particle(particles[i+1]);
-            draw_particle(particles[i+2]);
-            draw_particle(particles[i+3]);
-            draw_particle(particles[i+4]);
-            draw_particle(particles[i+5]);
-            draw_particle(particles[i+6]);
-            draw_particle(particles[i+7]);
-            draw_particle(particles[i+8]);
-            draw_particle(particles[i+9]);
-            draw_particle(particles[i+10]);
-            draw_particle(particles[i+11]);
-            draw_particle(particles[i+12]);
-            draw_particle(particles[i+13]);
-            draw_particle(particles[i+14]);
-            draw_particle(particles[i+15]);
-            draw_particle(particles[i+16]);
-            draw_particle(particles[i+17]);
-            draw_particle(particles[i+18]);
-            draw_particle(particles[i+19]);
-        }
+        const safe_loops = ~~(particles.length / 20);
+        draw_bulk(safe_loops);
+        draw_remaining_bulk(safe_loops);
 
         ctx.font = `${ui_font_size}px ${UI_FONT}`;
 
         ctx.fillStyle = ui_offset_color;
         ctx.fillText(`${offset_x.toFixed(2)},${(-offset_y).toFixed(2)}`, 8, 17);
 
-        ui_fps_samples.push(1000 / delta_time);
-        if (ui_fps_samples.length === ui_concurrent_fps_samples + 1) {
-            ui_fps_samples.shift();
-        }
-
         ctx.fillStyle = ui_fps_color;
-        ctx.fillText(`${~~(ui_fps_samples.reduce((a,b) => a+b) / ui_fps_samples.length)}`, width - 27, 17, 25)
+        ctx.fillText(`${~~current_fps}`, width - 27, 17, 25)
 
         frame_count++;
 

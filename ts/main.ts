@@ -5,8 +5,6 @@ const display = new Display("#display", { fixed_fps: 60 });
 // particles.push(new Particle(0, -500, 500, 30/1000, -60/1000, 3/1000000, -6/1000000));
 // particles.push(new Particle(1, 500, 500, -30/1000, -60/1000, -3/1000000, -6/1000000));
 
-no_mouse_mode = true;
-
 (function(){
     const quantity = 20000,
           delta_angle = 2 * Math.PI / quantity,
