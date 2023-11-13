@@ -5,8 +5,10 @@ const display = new Display("#display", { fixed_fps: 60 });
 // particles.push(new Particle(0, -500, 500, 30/1000, -60/1000, 3/1000000, -6/1000000));
 // particles.push(new Particle(1, 500, 500, -30/1000, -60/1000, -3/1000000, -6/1000000));
 
+no_mouse_mode = true;
+
 (function(){
-    const quantity = 1000,
+    const quantity = 20000,
           delta_angle = 2 * Math.PI / quantity,
           vx_module = 0/1000,
           vy_module = 0/1000,
@@ -19,7 +21,7 @@ const display = new Display("#display", { fixed_fps: 60 });
     }
 })();
 
-set_scale(0.1);
+set_scale(0.8);
 //  let angle = 0,
 //      distance = 100,
 //      w = (2 * Math.PI) / 288;

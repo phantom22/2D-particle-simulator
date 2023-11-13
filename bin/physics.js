@@ -59,7 +59,7 @@ delta_time,
 /** Increments by one at the end of each rendered frame. */
 frame_count, physics_interval_id, render_interval_id;
 const UI_FONT = "Verdana";
-let ui_font_size = 15, ui_padding = 5, ui_margin = 15, ui_offset_color = "#c2ac44", ui_fps_color = "#00ff00";
+let ui_font_size = 15, ui_padding = 5, ui_margin = 15, ui_offset_color = "#c2ac44", ui_fps_color = "#00ff00", ui_concurrent_fps_samples, ui_fps_samples;
 /** This function, before drawing a particles, asserts that it's not an undefined value and if it's a visible particle. */
 function draw_particle(p) {
     if (p === undefined || p.is_visible() === false)
@@ -67,13 +67,18 @@ function draw_particle(p) {
     const pos = p.screen_position();
     ctx.drawImage(MATERIAL_CACHE[p.material.type], pos[0], pos[1], particle_width, particle_width);
 }
+function update_particle(p) {
+    if (p === undefined)
+        return;
+    p.step();
+}
 class Display {
     /** How many frames after the page loads should the fps detector wait? Default=5 */
     static WAIT_FRAMES = 10;
     /** Number of taken sample timestamps required for the fps detection. Default=10 */
     static FPS_SAMPLES = 10;
     /** Very small number that helps preventing wrong fps detection. Default=0.004973808593749851 */
-    static FPS_CALCULATION_EPSILON = 0.006;
+    static FPS_CALCULATION_EPSILON = 0.01;
     /** The refresh rate of the screen. Needs to be calculated only one time. Read-only. */
     static REFRESH_RATE;
     /** Is the current device a mobile phone? Needed for performance tweaks. Read-only. */
@@ -174,6 +179,8 @@ class Display {
         applyEventListeners(fps);
         unpaused = unpaused ?? true;
         frame_count = 0;
+        ui_concurrent_fps_samples = Math.ceil(fps * 0.7);
+        ui_fps_samples = [];
         // adapt canvas size
         width = window.innerWidth;
         height = window.innerHeight;
@@ -184,7 +191,7 @@ class Display {
         // center the camera to 0,0
         set_world_offset(0 - width * 0.5, 0 - height * 0.5);
         physics_interval_id = setInterval(this.fixed_physics_step.bind(this), fixed_delta_time);
-        render_interval_id = requestAnimationFrame(this.render_step.bind(this, 0, 0));
+        render_interval_id = requestAnimationFrame(this.render_step.bind(this, 1000 / fps, 0));
     }
     /**
      * This method controls the physics calculation process. It's defined as follows:
@@ -194,9 +201,28 @@ class Display {
      */
     fixed_physics_step() {
         if (document.hidden === false && unpaused) {
-            for (let i = 0; i < particles.length; i++)
-                if (particles[i].should_be_updated() === true)
-                    particles[i].step();
+            for (let i = 0; i < particles.length; i += 20) {
+                update_particle(particles[i]);
+                update_particle(particles[i + 1]);
+                update_particle(particles[i + 2]);
+                update_particle(particles[i + 3]);
+                update_particle(particles[i + 4]);
+                update_particle(particles[i + 5]);
+                update_particle(particles[i + 6]);
+                update_particle(particles[i + 7]);
+                update_particle(particles[i + 8]);
+                update_particle(particles[i + 9]);
+                update_particle(particles[i + 10]);
+                update_particle(particles[i + 11]);
+                update_particle(particles[i + 12]);
+                update_particle(particles[i + 13]);
+                update_particle(particles[i + 14]);
+                update_particle(particles[i + 15]);
+                update_particle(particles[i + 16]);
+                update_particle(particles[i + 17]);
+                update_particle(particles[i + 18]);
+                update_particle(particles[i + 19]);
+            }
         }
     }
     /**
@@ -239,7 +265,7 @@ class Display {
         }
         ctx.clearRect(0, 0, width, height);
         ctx.drawImage(GRID_CACHE, 0, 0);
-        for (let i = 0; i < particles.length; i += 10) {
+        for (let i = 0; i < particles.length; i += 20) {
             draw_particle(particles[i]);
             draw_particle(particles[i + 1]);
             draw_particle(particles[i + 2]);
@@ -250,12 +276,26 @@ class Display {
             draw_particle(particles[i + 7]);
             draw_particle(particles[i + 8]);
             draw_particle(particles[i + 9]);
+            draw_particle(particles[i + 10]);
+            draw_particle(particles[i + 11]);
+            draw_particle(particles[i + 12]);
+            draw_particle(particles[i + 13]);
+            draw_particle(particles[i + 14]);
+            draw_particle(particles[i + 15]);
+            draw_particle(particles[i + 16]);
+            draw_particle(particles[i + 17]);
+            draw_particle(particles[i + 18]);
+            draw_particle(particles[i + 19]);
         }
         ctx.font = `${ui_font_size}px ${UI_FONT}`;
         ctx.fillStyle = ui_offset_color;
         ctx.fillText(`${offset_x.toFixed(2)},${(-offset_y).toFixed(2)}`, 8, 17);
+        ui_fps_samples.push(1000 / delta_time);
+        if (ui_fps_samples.length === ui_concurrent_fps_samples + 1) {
+            ui_fps_samples.shift();
+        }
         ctx.fillStyle = ui_fps_color;
-        ctx.fillText(`${~~(1000 / delta_time)}`, width - 27, 17, 25);
+        ctx.fillText(`${~~(ui_fps_samples.reduce((a, b) => a + b) / ui_fps_samples.length)}`, width - 27, 17, 25);
         frame_count++;
         render_interval_id = requestAnimationFrame(nextFrame => this.render_step.call(this, nextFrame, currFrame));
     }
@@ -563,7 +603,7 @@ window.addEventListener("keydown", e => {
     switch (e.key) {
         case " ":
             unpaused = !unpaused;
-            if (unpaused === true && time_scale <= 0) {
+            if (unpaused === true && time_scale === 0) {
                 set_time_scale(1);
             }
             break;
@@ -912,14 +952,15 @@ const display = new Display("#display", { fixed_fps: 60 });
 // particles.push(new Particle(0, 500, -500, -30/1000, 60/1000, -3/1000000, 6/1000000));
 // particles.push(new Particle(0, -500, 500, 30/1000, -60/1000, 3/1000000, -6/1000000));
 // particles.push(new Particle(1, 500, 500, -30/1000, -60/1000, -3/1000000, -6/1000000));
+no_mouse_mode = true;
 (function () {
-    const quantity = 1000, delta_angle = 2 * Math.PI / quantity, vx_module = 0 / 1000, vy_module = 0 / 1000, ax_module = 9.81 / 1000000, ay_module = 9.81 / 1000000;
+    const quantity = 20000, delta_angle = 2 * Math.PI / quantity, vx_module = 0 / 1000, vy_module = 0 / 1000, ax_module = 9.81 / 1000000, ay_module = 9.81 / 1000000;
     for (let i = 0; i < quantity; i++) {
         const angle = i * delta_angle;
         particles.push(new Particle(0, /*(angle<Math.PI*0.5||angle>3*Math.PI*0.5 ? -particle_width : 0)*/ -particle_width * 0.5, /*(angle<Math.PI ? -particle_width : 0) +*/ particle_width * 0.5, vx_module * Math.cos(angle), vy_module * Math.sin(angle), ax_module * Math.cos(angle), ay_module * Math.sin(angle)));
     }
 })();
-set_scale(0.1);
+set_scale(0.8);
 //  let angle = 0,
 //      distance = 100,
 //      w = (2 * Math.PI) / 288;
