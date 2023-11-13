@@ -232,6 +232,8 @@ class Display {
             this.adapt_canvas_size();
         delta_time = currFrame - prevFrame;
         scaled_delta_time = delta_time * time_scale;
+        if (_is_pressing_reverse_time_scale_button)
+            scaled_delta_time = -scaled_delta_time;
         if (selected_particle > -1) {
             camera_look_at_centerered_cell(particles[selected_particle].x, particles[selected_particle].y);
         }
@@ -463,13 +465,13 @@ _time_scale_min_to_max_time = 1,
 /** When pressing ctrl and scrolling the mouse wheel, this multiplier is applied to `scale_scroll_wheel_delta` and `time_scale_scroll_wheel_delta`. */
 _ctrl_wheel_slow_down = 1 / 10, 
 /** When pressing shift and scrolling the mouse wheel, this multiplier is applied to `scale_scroll_wheel_delta` and `time_scale_scroll_wheel_delta`. */
-_shift_wheel_speed_up = 3, 
+_shift_wheel_speed_up = 5, 
 /** Maximum number of mousemove events processed per frame. */
 _max_samples_per_frame = 3.;
 /** Is the user in the middle of a drag event? */
 let _is_dragging, 
 /** Is the user currently pressing the T button, enabling `time_scale` modification? */
-_is_pressing_time_scale_button, 
+_is_pressing_time_scale_button, _is_pressing_reverse_time_scale_button, 
 /**
  * The selected particle is identified by its ID, which is its position in the `particles` array.
  *
@@ -501,6 +503,7 @@ function applyEventListeners(fps) {
     time_scale = time_scale ?? 1;
     _is_dragging = false;
     _is_pressing_time_scale_button = false;
+    _is_pressing_reverse_time_scale_button = false;
     selected_particle = selected_particle ?? -1,
         _sample_counter = 0;
     canvas.addEventListener("wheel", mousewheel);
@@ -535,6 +538,9 @@ window.addEventListener("keydown", e => {
         case "t":
             _is_pressing_time_scale_button = true;
             return;
+        case "r":
+            _is_pressing_reverse_time_scale_button = true;
+            break;
         case "Escape":
             selected_particle = -1;
             return;
@@ -557,7 +563,7 @@ window.addEventListener("keydown", e => {
     switch (e.key) {
         case " ":
             unpaused = !unpaused;
-            if (unpaused === true && time_scale === 0) {
+            if (unpaused === true && time_scale <= 0) {
                 set_time_scale(1);
             }
             break;
@@ -573,6 +579,9 @@ window.addEventListener("keyup", e => {
     switch (e.key) {
         case "t":
             _is_pressing_time_scale_button = false;
+            break;
+        case "r":
+            _is_pressing_reverse_time_scale_button = false;
             break;
         case "Shift":
             _is_pressing_time_scale_button = false;
@@ -722,6 +731,7 @@ function mouseup(e) {
 function mouseleave(e) {
     _drag_type = -1;
     _is_pressing_time_scale_button = false;
+    _is_pressing_reverse_time_scale_button = false;
 }
 /** This array contains all the particles to be rendered. */
 let particles = [], 

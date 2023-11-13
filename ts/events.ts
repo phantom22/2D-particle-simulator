@@ -59,7 +59,7 @@ const _min_scale = 0.08,
       /** When pressing ctrl and scrolling the mouse wheel, this multiplier is applied to `scale_scroll_wheel_delta` and `time_scale_scroll_wheel_delta`. */
       _ctrl_wheel_slow_down = 1/10,
       /** When pressing shift and scrolling the mouse wheel, this multiplier is applied to `scale_scroll_wheel_delta` and `time_scale_scroll_wheel_delta`. */
-      _shift_wheel_speed_up = 3,
+      _shift_wheel_speed_up = 5,
       /** Maximum number of mousemove events processed per frame. */
       _max_samples_per_frame = 3.
 
@@ -67,6 +67,7 @@ const _min_scale = 0.08,
 let _is_dragging:boolean,
     /** Is the user currently pressing the T button, enabling `time_scale` modification? */
     _is_pressing_time_scale_button:boolean,
+    _is_pressing_reverse_time_scale_button:boolean,
     /** 
      * The selected particle is identified by its ID, which is its position in the `particles` array. 
      * 
@@ -101,6 +102,7 @@ function applyEventListeners(fps:number) {
     time_scale = time_scale ?? 1;
     _is_dragging = false;
     _is_pressing_time_scale_button = false;
+    _is_pressing_reverse_time_scale_button = false;
     selected_particle = selected_particle ?? -1,
     _sample_counter = 0;
 
@@ -137,6 +139,9 @@ window.addEventListener("keydown", e => {
         case "t":
             _is_pressing_time_scale_button = true;
             return;
+        case "r":
+            _is_pressing_reverse_time_scale_button = true;
+            break;
         case "Escape":
             selected_particle = -1;
             return;
@@ -172,6 +177,9 @@ window.addEventListener("keyup", e  => {
     switch (e.key) {
         case "t":
             _is_pressing_time_scale_button = false;
+            break;
+        case "r":
+            _is_pressing_reverse_time_scale_button = false;
             break;
         case "Shift":
             _is_pressing_time_scale_button = false;
@@ -328,4 +336,5 @@ function mouseup(this:HTMLCanvasElement, e:MouseEvent) {
 function mouseleave(this:HTMLCanvasElement, e:MouseEvent) {
     _drag_type = -1;
     _is_pressing_time_scale_button = false;
+    _is_pressing_reverse_time_scale_button = false;
 }

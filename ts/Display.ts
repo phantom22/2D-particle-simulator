@@ -234,6 +234,7 @@ class Display {
         
         delta_time = currFrame - prevFrame;
         scaled_delta_time = delta_time * time_scale;
+        if (_is_pressing_reverse_time_scale_button) scaled_delta_time = -scaled_delta_time;
 
         if (selected_particle > -1) {
             camera_look_at_centerered_cell(particles[selected_particle].x, particles[selected_particle].y)
